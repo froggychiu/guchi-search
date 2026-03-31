@@ -80,7 +80,7 @@ async def download_audio(audio_url: str, episode_id: int) -> str:
     if os.path.exists(file_path):
         return file_path
 
-    async with httpx.AsyncClient(timeout=300) as client:
+    async with httpx.AsyncClient(timeout=300, follow_redirects=True) as client:
         async with client.stream("GET", audio_url) as response:
             response.raise_for_status()
             with open(file_path, "wb") as f:
