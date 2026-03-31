@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import String, Text, Integer, DateTime, Float
+from sqlalchemy import String, Text, Integer, DateTime, Float, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -30,7 +30,7 @@ class Segment(Base):
     __tablename__ = "segments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    episode_id: Mapped[int] = mapped_column(Integer, index=True)
+    episode_id: Mapped[int] = mapped_column(Integer, ForeignKey("episodes.id"), index=True)
     speaker: Mapped[str | None] = mapped_column(String(100), nullable=True)
     start_time: Mapped[float] = mapped_column(Float)
     end_time: Mapped[float] = mapped_column(Float)

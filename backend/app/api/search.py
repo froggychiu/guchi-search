@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -120,7 +120,7 @@ async def get_episode(episode_id: int, db: AsyncSession = Depends(get_db)):
     """Get a single episode with its full transcript."""
     episode = await db.get(Episode, episode_id)
     if not episode:
-        return {"error": "Episode not found"}, 404
+        raise HTTPException(status_code=404, detail="Episode not found")
 
     result = await db.execute(
         select(Segment)

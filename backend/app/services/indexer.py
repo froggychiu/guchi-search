@@ -37,5 +37,5 @@ async def index_all_episodes(db: AsyncSession):
 async def remove_episode_from_index(episode_id: int):
     """Remove all segments of an episode from Meilisearch."""
     index = get_search_index()
-    # Delete by filter
-    index.delete_documents({"filter": f"episode_id = {episode_id}"})
+    # Delete by filter (Meilisearch v1.2+)
+    index.delete_documents_by_filter(f"episode_id = {episode_id}")
