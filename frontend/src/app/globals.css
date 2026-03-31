@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+mark {
+  @apply bg-yellow-200 text-black px-0.5 rounded;
+}
