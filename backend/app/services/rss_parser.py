@@ -47,7 +47,12 @@ def fetch_episodes() -> list[dict]:
         published_at = None
         if entry.get("published"):
             try:
-                published_at = parsedate_to_datetime(entry.published)
+                dt = parsedate_to_datetime(entry.published)
+                # Convert to naive UTC datetime for DB storage
+                if dt.tzinfo is not None:
+                    from datetime import timezone
+                    dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+                published_at = dt
             except (ValueError, TypeError):
                 pass
 
