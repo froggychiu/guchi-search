@@ -17,7 +17,7 @@ def setup_search_index():
     client.index(INDEX_NAME).update_filterable_attributes(
         ["episode_id", "show", "speaker"]
     )
-    client.index(INDEX_NAME).update_searchable_attributes(["text"])
+    client.index(INDEX_NAME).update_searchable_attributes(["text", "episode_title"])
     client.index(INDEX_NAME).update_sortable_attributes(["start_time"])
     # Better Chinese tokenization
     client.index(INDEX_NAME).update_dictionary([])

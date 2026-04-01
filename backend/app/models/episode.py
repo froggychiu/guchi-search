@@ -38,11 +38,12 @@ class Segment(Base):
 
     episode: Mapped["Episode"] = relationship(back_populates="segments")
 
-    def to_search_doc(self, show: str) -> dict:
+    def to_search_doc(self, show: str, episode_title: str = "") -> dict:
         """Convert to Meilisearch document."""
         return {
             "id": self.id,
             "episode_id": self.episode_id,
+            "episode_title": episode_title,
             "show": show,
             "speaker": self.speaker or "",
             "start_time": self.start_time,

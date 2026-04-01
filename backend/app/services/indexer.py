@@ -19,7 +19,7 @@ async def index_episode_segments(db: AsyncSession, episode_id: int):
     if not segments:
         return
 
-    docs = [seg.to_search_doc(show=episode.show) for seg in segments]
+    docs = [seg.to_search_doc(show=episode.show, episode_title=episode.title) for seg in segments]
     index = get_search_index()
     # Meilisearch handles batching internally
     index.add_documents(docs)
