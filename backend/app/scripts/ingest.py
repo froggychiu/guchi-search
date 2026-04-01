@@ -108,6 +108,7 @@ async def transcribe_episode(session: AsyncSession, episode: Episode):
 async def main():
     parser = argparse.ArgumentParser(description="Ingest podcast episodes")
     parser.add_argument("--setup", action="store_true", help="Setup DB and search index only")
+    parser.add_argument("--reindex", action="store_true", help="Re-index all done episodes into Meilisearch")
     parser.add_argument("--episode-id", type=int, help="Transcribe a specific episode")
     parser.add_argument("--limit", type=int, help="Max episodes to transcribe in this run")
     parser.add_argument("--show", type=str, help="Only process episodes from this show")
@@ -125,6 +126,14 @@ async def main():
             print("[OK] Meilisearch index configured.")
         except Exception as e:
             print(f"[WARN] Meilisearch setup: {e}")
+        return
+
+    if args.reindex:
+        async with session_factory() as session:
+            from app.services.indexer import index_all_episodes
+            print("[...] Re-indexing all done episodes into Meilisearch...")
+            await index_all_episodes(session)
+            print("[OK] Re-indexing complete.")
         return
 
     async with session_factory() as session:
