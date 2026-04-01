@@ -57,3 +57,29 @@ async def trigger_ingest(
 
     background_tasks.add_task(_run_ingest, limit)
     return {"status": "ingest started"}
+
+
+def _run_reindex():
+    """Run reindex in background."""
+    import subprocess
+    cmd = ["python", "-m", "app.scripts.ingest", "--reindex"]
+    logger.info(f"Starting reindex: {cmd}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    logger.info(f"Reindex stdout: {result.stdout}")
+    if result.returncode != 0:
+        logger.error(f"Reindex stderr: {result.stderr}")
+
+
+@app.post("/api/reindex")
+async def trigger_reindex(
+    background_tasks: BackgroundTasks,
+    x_ingest_secret: str = Header(None),
+):
+    """Re-index all transcribed episodes into Meilisearch. Protected by secret token."""
+    if not settings.ingest_secret:
+        raise HTTPException(status_code=503, detail="Ingest secret not configured")
+    if x_ingest_secret != settings.ingest_secret:
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
+    background_tasks.add_task(_run_reindex)
+    return {"status": "reindex started"}
