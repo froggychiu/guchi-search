@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # Audio download path
     audio_dir: str = "/tmp/guchi_audio"
 
+    # Ingest cron secret (for triggering ingest via API)
+    ingest_secret: str = ""
+
     # CORS
     cors_origins: list[str] = ["*"]
 
