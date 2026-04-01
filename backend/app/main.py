@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
@@ -31,8 +30,8 @@ async def health():
     return {"status": "ok"}
 
 
-async def _run_ingest(limit: int | None = None):
-    """Run ingest in background."""
+def _run_ingest(limit: int | None = None):
+    """Run ingest in background (sync function so BackgroundTasks runs it in a thread)."""
     import subprocess
     cmd = ["python", "-m", "app.scripts.ingest"]
     if limit:
