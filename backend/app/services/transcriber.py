@@ -41,9 +41,9 @@ def _transcribe_single(client: OpenAI, file_path: str) -> list[dict]:
     if hasattr(response, "segments") and response.segments:
         for seg in response.segments:
             segments.append({
-                "start_time": seg.get("start", seg.get("start_time", 0)),
-                "end_time": seg.get("end", seg.get("end_time", 0)),
-                "text": seg.get("text", "").strip(),
+                "start_time": getattr(seg, "start", 0),
+                "end_time": getattr(seg, "end", 0),
+                "text": getattr(seg, "text", "").strip(),
             })
     else:
         # Fallback: treat the whole transcription as one segment
