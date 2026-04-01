@@ -2,7 +2,7 @@ import meilisearch
 
 from app.core.config import settings
 
-client = meilisearch.Client(settings.meilisearch_url, settings.meilisearch_api_key)
+client = meilisearch.Client(settings.meilisearch_url, settings.meilisearch_api_key, timeout=5)
 
 INDEX_NAME = "segments"
 

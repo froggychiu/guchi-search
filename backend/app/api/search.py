@@ -1,3 +1,6 @@
+import asyncio
+from functools import partial
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,20 +27,23 @@ async def search(
     if show:
         filters.append(f'show = "{show}"')
 
-    results = index.search(
-        q,
-        {
-            "limit": per_page,
-            "offset": (page - 1) * per_page,
-            "filter": " AND ".join(filters) if filters else None,
-            "attributesToHighlight": ["text"],
-            "highlightPreTag": "<mark>",
-            "highlightPostTag": "</mark>",
-            "attributesToCrop": ["text"],
-            "cropLength": 80,
-            "showMatchesPosition": True,
-        },
-    )
+    search_params = {
+        "limit": per_page,
+        "offset": (page - 1) * per_page,
+        "filter": " AND ".join(filters) if filters else None,
+        "attributesToHighlight": ["text"],
+        "highlightPreTag": "<mark>",
+        "highlightPostTag": "</mark>",
+        "attributesToCrop": ["text"],
+        "cropLength": 80,
+        "showMatchesPosition": True,
+    }
+
+    try:
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(None, partial(index.search, q, search_params))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Search service unavailable: {str(e)}")
 
     # Enrich results with episode info
     episode_ids = list({hit["episode_id"] for hit in results["hits"]})
