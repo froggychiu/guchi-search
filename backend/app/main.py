@@ -4,6 +4,7 @@ from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.search import router as search_router
+from app.api.corrections import router as corrections_router
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ app.add_middleware(
 )
 
 app.include_router(search_router)
+app.include_router(corrections_router)
 
 
 @app.get("/health")

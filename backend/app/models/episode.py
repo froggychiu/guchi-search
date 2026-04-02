@@ -38,6 +38,8 @@ class Segment(Base):
 
     episode: Mapped["Episode"] = relationship(back_populates="segments")
 
+    corrections: Mapped[list["Correction"]] = relationship(back_populates="segment")
+
     def to_search_doc(self, show: str, episode_title: str = "") -> dict:
         """Convert to Meilisearch document."""
         return {
@@ -50,3 +52,18 @@ class Segment(Base):
             "end_time": self.end_time,
             "text": self.text,
         }
+
+
+class Correction(Base):
+    __tablename__ = "corrections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    segment_id: Mapped[int] = mapped_column(Integer, ForeignKey("segments.id"), index=True)
+    original_text: Mapped[str] = mapped_column(Text)
+    suggested_text: Mapped[str] = mapped_column(Text)
+    submitter_name: Mapped[str] = mapped_column(String(100), default="匿名")
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, approved, rejected
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    segment: Mapped["Segment"] = relationship(back_populates="corrections")

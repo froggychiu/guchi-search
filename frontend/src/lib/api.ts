@@ -87,6 +87,61 @@ export async function getStats(): Promise<{
   return res.json();
 }
 
+export interface CorrectionItem {
+  id: number;
+  segment_id: number;
+  episode_id: number;
+  episode_title: string;
+  start_time: number;
+  original_text: string;
+  suggested_text: string;
+  submitter_name: string;
+  status: string;
+  created_at: string;
+}
+
+export async function submitCorrection(
+  segment_id: number,
+  suggested_text: string,
+  submitter_name = "匿名"
+): Promise<{ status: string; id: number }> {
+  const res = await fetch(`${API_BASE}/api/corrections`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ segment_id, suggested_text, submitter_name }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || "提交失敗");
+  }
+  return res.json();
+}
+
+export async function getCorrections(
+  status = "pending",
+  page = 1
+): Promise<{ total: number; page: number; per_page: number; corrections: CorrectionItem[] }> {
+  const params = new URLSearchParams({ status, page: String(page) });
+  const res = await fetch(`${API_BASE}/api/corrections?${params}`);
+  return res.json();
+}
+
+export async function reviewCorrection(
+  id: number,
+  action: "approve" | "reject",
+  secret: string
+): Promise<{ status: string }> {
+  const res = await fetch(`${API_BASE}/api/corrections/${id}/${action}`, {
+    method: "POST",
+    headers: { "X-Ingest-Secret": secret },
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || "操作失敗");
+  }
+  return res.json();
+}
+
 export function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
