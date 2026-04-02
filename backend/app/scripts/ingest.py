@@ -114,6 +114,7 @@ async def main():
     parser.add_argument("--reindex", action="store_true", help="Re-index all done episodes into Meilisearch")
     parser.add_argument("--reclassify", action="store_true", help="Re-classify all episodes into correct shows")
     parser.add_argument("--dedup", action="store_true", help="Remove duplicate episodes (keep first by ID)")
+    parser.add_argument("--retry-errors", action="store_true", help="Reset error/processing episodes to pending and re-transcribe")
     parser.add_argument("--episode-id", type=int, help="Transcribe a specific episode")
     parser.add_argument("--limit", type=int, help="Max episodes to transcribe in this run")
     parser.add_argument("--show", type=str, help="Only process episodes from this show")
@@ -180,6 +181,19 @@ async def main():
                     removed += 1
             await session.commit()
             print(f"[OK] Removed {removed} duplicate episodes.")
+        return
+
+    if args.retry_errors:
+        async with session_factory() as session:
+            result = await session.execute(
+                select(Episode).where(Episode.transcription_status.in_(["error", "processing"]))
+            )
+            episodes = result.scalars().all()
+            for ep in episodes:
+                print(f"  [RESET] id={ep.id} [{ep.transcription_status}] → [pending] {ep.title}")
+                ep.transcription_status = "pending"
+            await session.commit()
+            print(f"[OK] Reset {len(episodes)} episodes to pending.")
         return
 
     if args.reindex:
