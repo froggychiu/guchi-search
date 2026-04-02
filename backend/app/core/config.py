@@ -21,8 +21,8 @@ class Settings(BaseSettings):
 
     # Show classification keywords
     show_keywords: dict[str, list[str]] = {
-        "新資料夾": ["新資料夾"],
-        "直播": ["直播", "LIVE", "live"],
+        "新資料夾": ["新資料夾", "混蛋"],
+        "直播": ["直播", "LIVE", "live", "呱吉電台"],
     }
     default_show: str = "其他"
 

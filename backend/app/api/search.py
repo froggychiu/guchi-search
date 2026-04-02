@@ -82,12 +82,16 @@ async def search(
 @router.get("/episodes")
 async def list_episodes(
     show: str | None = Query(None),
+    sort: str = Query("newest", description="Sort order: 'newest' or 'oldest'"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """List all episodes with pagination."""
-    query = select(Episode).order_by(Episode.published_at.desc())
+    if sort == "oldest":
+        query = select(Episode).order_by(Episode.published_at.asc())
+    else:
+        query = select(Episode).order_by(Episode.published_at.desc())
     count_query = select(func.count(Episode.id))
 
     if show:

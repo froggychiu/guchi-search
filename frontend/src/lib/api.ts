@@ -59,9 +59,10 @@ export async function search(
 
 export async function getEpisodes(
   show?: string,
-  page = 1
+  page = 1,
+  sort = "newest"
 ): Promise<{ total: number; page: number; per_page: number; episodes: EpisodeSummary[] }> {
-  const params = new URLSearchParams({ page: String(page) });
+  const params = new URLSearchParams({ page: String(page), sort });
   if (show) params.set("show", show);
   const res = await fetch(`${API_BASE}/api/episodes?${params}`);
   return res.json();

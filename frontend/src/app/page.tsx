@@ -18,6 +18,7 @@ export default function Home() {
   const [totalEpisodes, setTotalEpisodes] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
   const [mode, setMode] = useState<"browse" | "search">("browse");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
 
   useEffect(() => {
     getShows().then((data) => setShows(data.shows)).catch(() => {});
@@ -25,9 +26,9 @@ export default function Home() {
     loadEpisodes(1);
   }, []);
 
-  async function loadEpisodes(p: number, show?: string) {
+  async function loadEpisodes(p: number, show?: string, sort?: "newest" | "oldest") {
     try {
-      const data = await getEpisodes(show, p);
+      const data = await getEpisodes(show, p, sort || sortOrder);
       setEpisodes(data.episodes);
       setTotalEpisodes(data.total);
       setPage(p);
@@ -79,6 +80,12 @@ export default function Home() {
     }
   }
 
+  function handleSortChange(sort: "newest" | "oldest") {
+    setSortOrder(sort);
+    setPage(1);
+    loadEpisodes(1, activeShow, sort);
+  }
+
   const totalPages = mode === "search"
     ? Math.ceil(totalHits / 20)
     : Math.ceil(totalEpisodes / 20);
@@ -87,7 +94,7 @@ export default function Home() {
     <div>
       {/* Stats */}
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">呱吉 Podcast 檢索系統</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">新資料庫</h1>
         <p className="text-gray-500">
           {stats.transcribed_episodes} 集已轉錄 / {stats.total_segments.toLocaleString()} 段文字可搜尋
         </p>
@@ -120,6 +127,29 @@ export default function Home() {
               {show.name} ({show.episode_count})
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Sort toggle */}
+      {mode === "browse" && (
+        <div className="flex gap-2 mb-4 items-center">
+          <span className="text-sm text-gray-500">排序：</span>
+          <button
+            onClick={() => handleSortChange("newest")}
+            className={`px-3 py-1 rounded text-sm transition-colors ${
+              sortOrder === "newest" ? "bg-gray-800 text-white" : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+            }`}
+          >
+            最新
+          </button>
+          <button
+            onClick={() => handleSortChange("oldest")}
+            className={`px-3 py-1 rounded text-sm transition-colors ${
+              sortOrder === "oldest" ? "bg-gray-800 text-white" : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+            }`}
+          >
+            最舊
+          </button>
         </div>
       )}
 

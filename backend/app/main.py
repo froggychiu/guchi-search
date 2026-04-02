@@ -9,7 +9,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="呱吉 Podcast 檢索系統",
+    title="新資料庫",
     description="全文檢索呱吉頻道的 Podcast 逐字稿",
     version="1.0.0",
 )
