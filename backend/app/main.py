@@ -83,3 +83,32 @@ async def trigger_reindex(
 
     background_tasks.add_task(_run_reindex)
     return {"status": "reindex started"}
+
+
+def _run_maintenance(action: str):
+    """Run maintenance tasks in background."""
+    import subprocess
+    cmd = ["python", "-m", "app.scripts.ingest", f"--{action}"]
+    logger.info(f"Starting maintenance: {cmd}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    logger.info(f"Maintenance stdout: {result.stdout}")
+    if result.returncode != 0:
+        logger.error(f"Maintenance stderr: {result.stderr}")
+
+
+@app.post("/api/maintenance/{action}")
+async def trigger_maintenance(
+    action: str,
+    background_tasks: BackgroundTasks,
+    x_ingest_secret: str = Header(None),
+):
+    """Run maintenance tasks: dedup, reclassify, reindex. Protected by secret token."""
+    if not settings.ingest_secret:
+        raise HTTPException(status_code=503, detail="Ingest secret not configured")
+    if x_ingest_secret != settings.ingest_secret:
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    if action not in ("dedup", "reclassify", "reindex"):
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+    background_tasks.add_task(_run_maintenance, action)
+    return {"status": f"{action} started"}
