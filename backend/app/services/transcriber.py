@@ -4,33 +4,47 @@ from openai import OpenAI
 
 from app.core.config import settings
 
-# Whisper API has a 25MB file size limit, so we may need to split audio
+# Groq supports up to 100MB via URL, but for file upload we keep 25MB limit
 MAX_FILE_SIZE_MB = 24
 
 
-def get_openai_client() -> OpenAI:
-    return OpenAI(api_key=settings.openai_api_key)
+def get_transcription_client() -> tuple[OpenAI, str]:
+    """
+    Return (client, model_name).
+    Prefer Groq if API key is set; fall back to OpenAI.
+    """
+    if settings.groq_api_key:
+        client = OpenAI(
+            api_key=settings.groq_api_key,
+            base_url="https://api.groq.com/openai/v1",
+        )
+        return client, "whisper-large-v3"
+    elif settings.openai_api_key:
+        client = OpenAI(api_key=settings.openai_api_key)
+        return client, "whisper-1"
+    else:
+        raise RuntimeError("No transcription API key configured (set GUCHI_GROQ_API_KEY or GUCHI_OPENAI_API_KEY)")
 
 
 def transcribe_audio(file_path: str) -> list[dict]:
     """
-    Transcribe an audio file using OpenAI Whisper API.
+    Transcribe an audio file using Groq or OpenAI Whisper API.
     Returns a list of segments with start_time, end_time, and text.
     """
-    client = get_openai_client()
+    client, model = get_transcription_client()
     file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
 
     if file_size_mb > MAX_FILE_SIZE_MB:
-        return _transcribe_chunked(client, file_path)
+        return _transcribe_chunked(client, model, file_path)
 
-    return _transcribe_single(client, file_path)
+    return _transcribe_single(client, model, file_path)
 
 
-def _transcribe_single(client: OpenAI, file_path: str) -> list[dict]:
+def _transcribe_single(client: OpenAI, model: str, file_path: str) -> list[dict]:
     """Transcribe a single audio file."""
     with open(file_path, "rb") as f:
         response = client.audio.transcriptions.create(
-            model="whisper-1",
+            model=model,
             file=f,
             language="zh",
             response_format="verbose_json",
@@ -56,7 +70,7 @@ def _transcribe_single(client: OpenAI, file_path: str) -> list[dict]:
     return segments
 
 
-def _transcribe_chunked(client: OpenAI, file_path: str) -> list[dict]:
+def _transcribe_chunked(client: OpenAI, model: str, file_path: str) -> list[dict]:
     """
     Split large audio files and transcribe each chunk.
     Requires ffmpeg to be available on the system.
@@ -89,7 +103,7 @@ def _transcribe_chunked(client: OpenAI, file_path: str) -> list[dict]:
                 "-y", chunk_path
             ], capture_output=True)
 
-            chunk_segments = _transcribe_single(client, chunk_path)
+            chunk_segments = _transcribe_single(client, model, chunk_path)
 
             # Offset timestamps by the chunk's start time
             for seg in chunk_segments:

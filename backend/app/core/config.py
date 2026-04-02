@@ -10,8 +10,11 @@ class Settings(BaseSettings):
     meilisearch_url: str = "http://localhost:7700"
     meilisearch_api_key: str = ""
 
-    # OpenAI (Whisper)
+    # OpenAI (Whisper) - fallback
     openai_api_key: str = ""
+
+    # Groq (Whisper) - primary
+    groq_api_key: str = ""
 
     # RSS Feed
     rss_feed_url: str = "https://feeds.soundon.fm/podcasts/ecd31076-d12d-46dc-ba11-32d24b41cca5.xml"
