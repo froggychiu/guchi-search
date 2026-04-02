@@ -115,6 +115,7 @@ async def main():
     parser.add_argument("--reclassify", action="store_true", help="Re-classify all episodes into correct shows")
     parser.add_argument("--dedup", action="store_true", help="Remove duplicate episodes (keep first by ID)")
     parser.add_argument("--retry-errors", action="store_true", help="Reset error/processing episodes to pending and re-transcribe")
+    parser.add_argument("--convert-s2t", action="store_true", help="Convert all existing segment text from Simplified to Traditional Chinese")
     parser.add_argument("--episode-id", type=int, help="Transcribe a specific episode")
     parser.add_argument("--limit", type=int, help="Max episodes to transcribe in this run")
     parser.add_argument("--show", type=str, help="Only process episodes from this show")
@@ -194,6 +195,22 @@ async def main():
                 ep.transcription_status = "pending"
             await session.commit()
             print(f"[OK] Reset {len(episodes)} episodes to pending.")
+        return
+
+    if args.convert_s2t:
+        from opencc import OpenCC
+        s2t = OpenCC("s2t")
+        async with session_factory() as session:
+            result = await session.execute(select(Segment))
+            segments = result.scalars().all()
+            converted = 0
+            for seg in segments:
+                new_text = s2t.convert(seg.text)
+                if new_text != seg.text:
+                    seg.text = new_text
+                    converted += 1
+            await session.commit()
+            print(f"[OK] Converted {converted} / {len(segments)} segments to Traditional Chinese.")
         return
 
     if args.reindex:
