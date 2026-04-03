@@ -2,6 +2,7 @@ import logging
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from app.api.search import router as search_router
 from app.api.corrections import router as corrections_router
@@ -87,10 +88,12 @@ async def trigger_reindex(
     return {"status": "reindex started"}
 
 
-def _run_maintenance(action: str):
+def _run_maintenance(action: str, extra_args: list[str] | None = None):
     """Run maintenance tasks in background."""
     import subprocess
     cmd = ["python", "-m", "app.scripts.ingest", f"--{action}"]
+    if extra_args:
+        cmd.extend(extra_args)
     logger.info(f"Starting maintenance: {cmd}")
     result = subprocess.run(cmd, capture_output=True, text=True)
     logger.info(f"Maintenance stdout: {result.stdout}")
@@ -109,8 +112,29 @@ async def trigger_maintenance(
         raise HTTPException(status_code=503, detail="Ingest secret not configured")
     if x_ingest_secret != settings.ingest_secret:
         raise HTTPException(status_code=403, detail="Invalid secret")
-    if action not in ("dedup", "reclassify", "reindex", "retry-errors", "convert-s2t"):
+    if action not in ("dedup", "reclassify", "reindex", "retry-errors", "convert-s2t", "replace-text"):
         raise HTTPException(status_code=400, detail="Invalid action")
 
     background_tasks.add_task(_run_maintenance, action)
     return {"status": f"{action} started"}
+
+
+class ReplaceTextRequest(BaseModel):
+    old_text: str
+    new_text: str
+
+
+@app.post("/api/replace-text")
+async def replace_text(
+    body: ReplaceTextRequest,
+    background_tasks: BackgroundTasks,
+    x_ingest_secret: str = Header(None),
+):
+    """Replace text across all segments. Protected by secret token."""
+    if not settings.ingest_secret:
+        raise HTTPException(status_code=503, detail="Ingest secret not configured")
+    if x_ingest_secret != settings.ingest_secret:
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
+    background_tasks.add_task(_run_maintenance, "replace-text", [body.old_text, body.new_text])
+    return {"status": f"replacing '{body.old_text}' → '{body.new_text}'"}

@@ -116,6 +116,7 @@ async def main():
     parser.add_argument("--dedup", action="store_true", help="Remove duplicate episodes (keep first by ID)")
     parser.add_argument("--retry-errors", action="store_true", help="Reset error/processing episodes to pending and re-transcribe")
     parser.add_argument("--convert-s2t", action="store_true", help="Convert all existing segment text from Simplified to Traditional Chinese")
+    parser.add_argument("--replace-text", nargs=2, metavar=("OLD", "NEW"), help="Replace text in all segments")
     parser.add_argument("--episode-id", type=int, help="Transcribe a specific episode")
     parser.add_argument("--limit", type=int, help="Max episodes to transcribe in this run")
     parser.add_argument("--show", type=str, help="Only process episodes from this show")
@@ -211,6 +212,17 @@ async def main():
                     converted += 1
             await session.commit()
             print(f"[OK] Converted {converted} / {len(segments)} segments to Traditional Chinese.")
+        return
+
+    if args.replace_text:
+        old_text, new_text_val = args.replace_text
+        async with session_factory() as session:
+            result = await session.execute(select(Segment).where(Segment.text.contains(old_text)))
+            segments = result.scalars().all()
+            for seg in segments:
+                seg.text = seg.text.replace(old_text, new_text_val)
+            await session.commit()
+            print(f"[OK] Replaced '{old_text}' → '{new_text_val}' in {len(segments)} segments.")
         return
 
     if args.reindex:
