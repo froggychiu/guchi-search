@@ -20,8 +20,9 @@ from app.core.database import Base
 from app.core.search import setup_search_index
 from app.models.episode import Episode, Segment
 from app.services.rss_parser import fetch_episodes, download_audio, classify_show
-from app.services.transcriber import transcribe_audio
+from app.services.transcriber import transcribe_audio, detect_hallucinations
 from app.services.indexer import index_episode_segments
+from app.models.episode import Correction
 
 
 async def setup_database(engine):
@@ -85,13 +86,33 @@ async def transcribe_episode(session: AsyncSession, episode: Episode):
         await session.commit()
         return
 
+    # Detect hallucinations before saving
+    hallucination_indices = detect_hallucinations(segments_data)
+
     # Save segments to DB
+    saved_segments = []
     for seg_data in segments_data:
         segment = Segment(episode_id=episode.id, **seg_data)
         session.add(segment)
+        saved_segments.append(segment)
 
     episode.transcription_status = "done"
     await session.commit()
+
+    # Create correction entries for hallucinated segments
+    if hallucination_indices:
+        for idx in hallucination_indices:
+            seg = saved_segments[idx]
+            correction = Correction(
+                segment_id=seg.id,
+                original_text=seg.text,
+                suggested_text="（疑似幻覺，建議刪除）",
+                submitter_name="系統自動偵測",
+            )
+            session.add(correction)
+        await session.commit()
+        print(f"  [WARN] {len(hallucination_indices)} segments flagged as potential hallucinations.")
+
     print(f"  [OK] {len(segments_data)} segments saved.")
 
     # Index in Meilisearch
@@ -117,6 +138,7 @@ async def main():
     parser.add_argument("--retry-errors", action="store_true", help="Reset error/processing episodes to pending and re-transcribe")
     parser.add_argument("--convert-s2t", action="store_true", help="Convert all existing segment text from Simplified to Traditional Chinese")
     parser.add_argument("--replace-text", nargs=2, metavar=("OLD", "NEW"), help="Replace text in all segments")
+    parser.add_argument("--scan-hallucinations", action="store_true", help="Scan existing transcripts for hallucinations and create correction entries")
     parser.add_argument("--episode-id", type=int, help="Transcribe a specific episode")
     parser.add_argument("--limit", type=int, help="Max episodes to transcribe in this run")
     parser.add_argument("--show", type=str, help="Only process episodes from this show")
@@ -212,6 +234,47 @@ async def main():
                     converted += 1
             await session.commit()
             print(f"[OK] Converted {converted} / {len(segments)} segments to Traditional Chinese.")
+        return
+
+    if args.scan_hallucinations:
+        from app.services.transcriber import HALLUCINATION_PATTERNS
+        async with session_factory() as session:
+            result = await session.execute(select(Episode).where(Episode.transcription_status == "done"))
+            episodes = result.scalars().all()
+            total_flagged = 0
+            for ep in episodes:
+                seg_result = await session.execute(
+                    select(Segment).where(Segment.episode_id == ep.id).order_by(Segment.start_time.asc())
+                )
+                segments = seg_result.scalars().all()
+
+                for seg in segments:
+                    # Only check first 5 minutes
+                    if seg.start_time > 300:
+                        break
+                    for pattern in HALLUCINATION_PATTERNS:
+                        if pattern in seg.text:
+                            # Check if correction already exists
+                            existing = await session.execute(
+                                select(Correction).where(
+                                    Correction.segment_id == seg.id,
+                                    Correction.status == "pending",
+                                )
+                            )
+                            if existing.scalar_one_or_none():
+                                break
+                            correction = Correction(
+                                segment_id=seg.id,
+                                original_text=seg.text,
+                                suggested_text="（疑似幻覺，建議刪除）",
+                                submitter_name="系統自動偵測",
+                            )
+                            session.add(correction)
+                            total_flagged += 1
+                            print(f"  [FLAG] {ep.title} @ {seg.start_time:.0f}s: {seg.text[:50]}...")
+                            break
+            await session.commit()
+            print(f"[OK] Flagged {total_flagged} segments as potential hallucinations.")
         return
 
     if args.replace_text:

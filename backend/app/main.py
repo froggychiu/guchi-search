@@ -112,7 +112,7 @@ async def trigger_maintenance(
         raise HTTPException(status_code=503, detail="Ingest secret not configured")
     if x_ingest_secret != settings.ingest_secret:
         raise HTTPException(status_code=403, detail="Invalid secret")
-    if action not in ("dedup", "reclassify", "reindex", "retry-errors", "convert-s2t", "replace-text"):
+    if action not in ("dedup", "reclassify", "reindex", "retry-errors", "convert-s2t", "replace-text", "scan-hallucinations"):
         raise HTTPException(status_code=400, detail="Invalid action")
 
     background_tasks.add_task(_run_maintenance, action)

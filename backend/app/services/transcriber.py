@@ -11,6 +11,47 @@ _s2t = OpenCC("s2t")
 # Groq supports up to 100MB via URL, but for file upload we keep 25MB limit
 MAX_FILE_SIZE_MB = 24
 
+# Known Whisper hallucination patterns (appears during silence/music)
+HALLUCINATION_PATTERNS = [
+    "字幕提供",
+    "字幕由",
+    "字幕組",
+    "字幕制作",
+    "字幕製作",
+    "請不吝點讚",
+    "訂閱我的頻道",
+    "感謝觀看",
+    "感謝收看",
+    "Thanks for watching",
+    "Thank you for watching",
+    "Subscribe",
+    "Subtitles by",
+    "Amara.org",
+]
+
+
+def detect_hallucinations(segments: list[dict], check_minutes: float = 5.0) -> list[int]:
+    """
+    Detect likely hallucinated segments in the first N minutes.
+    Returns list of segment indices that are suspicious.
+    """
+    suspicious = []
+    threshold_seconds = check_minutes * 60
+
+    for i, seg in enumerate(segments):
+        # Only check segments in the first N minutes
+        if seg["start_time"] > threshold_seconds:
+            break
+
+        text = seg["text"]
+        # Check against known patterns
+        for pattern in HALLUCINATION_PATTERNS:
+            if pattern in text:
+                suspicious.append(i)
+                break
+
+    return suspicious
+
 
 def get_transcription_client() -> tuple[OpenAI, str]:
     """

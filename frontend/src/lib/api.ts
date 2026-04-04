@@ -131,9 +131,9 @@ export async function reviewCorrection(
   action: "approve" | "reject",
   secret: string
 ): Promise<{ status: string }> {
-  const res = await fetch(`${API_BASE}/api/corrections/${id}/${action}`, {
+  const params = new URLSearchParams({ secret });
+  const res = await fetch(`${API_BASE}/api/corrections/${id}/${action}?${params}`, {
     method: "POST",
-    headers: { "X-Ingest-Secret": secret },
   });
   if (!res.ok) {
     const err = await res.json();

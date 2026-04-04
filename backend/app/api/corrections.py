@@ -95,11 +95,13 @@ async def list_corrections(
 @router.post("/{correction_id}/approve")
 async def approve_correction(
     correction_id: int,
+    secret: str = Query(None),
     x_ingest_secret: str = Header(None),
     db: AsyncSession = Depends(get_db),
 ):
     """Approve a correction and update the segment text."""
-    if not settings.ingest_secret or x_ingest_secret != settings.ingest_secret:
+    provided_secret = secret or x_ingest_secret
+    if not settings.ingest_secret or provided_secret != settings.ingest_secret:
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     correction = await db.get(Correction, correction_id)
@@ -130,11 +132,13 @@ async def approve_correction(
 @router.post("/{correction_id}/reject")
 async def reject_correction(
     correction_id: int,
+    secret: str = Query(None),
     x_ingest_secret: str = Header(None),
     db: AsyncSession = Depends(get_db),
 ):
     """Reject a correction suggestion."""
-    if not settings.ingest_secret or x_ingest_secret != settings.ingest_secret:
+    provided_secret = secret or x_ingest_secret
+    if not settings.ingest_secret or provided_secret != settings.ingest_secret:
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     correction = await db.get(Correction, correction_id)
