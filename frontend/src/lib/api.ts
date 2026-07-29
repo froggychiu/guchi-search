@@ -1,24 +1,87 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+/**
+ * Fetch wrapper with automatic retry for cold-start scenarios.
+ * Retries up to 3 times with exponential backoff (1s, 2s, 4s).
+ */
+async function fetchWithRetry(
+  url: string,
+  options?: RequestInit,
+  retries = 3
+): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(15000), // 15s timeout per attempt
+      });
+      if (res.ok) return res;
+      // Server returned an error status — if 502/503/504, retry (service waking up)
+      if ([502, 503, 504].includes(res.status) && attempt < retries - 1) {
+        await sleep(1000 * Math.pow(2, attempt));
+        continue;
+      }
+      return res; // Return non-retryable error responses as-is
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < retries - 1) {
+        await sleep(1000 * Math.pow(2, attempt));
+      }
+    }
+  }
+  throw lastError || new Error("API request failed after retries");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Parse JSON safely — throws a readable error if the response isn't valid JSON.
+ */
+async function parseJSON<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body.detail) detail = body.detail;
+    } catch {
+      // response wasn't JSON
+    }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+/** A single segment-level match inside an episode. */
 export interface SearchHit {
   segment_id: number;
-  episode_id: number;
-  episode_title: string;
-  show: string;
-  published_at: string | null;
-  speaker: string;
   start_time: number;
   end_time: number;
   text: string;
   highlighted_text: string;
+  is_title_only: boolean;
+}
+
+/** All hits in a single episode, returned as a group from /api/search. */
+export interface EpisodeSearchResult {
+  episode_id: number;
+  episode_title: string;
+  show: string;
+  published_at: string | null;
+  is_title_only_match: boolean;
+  hit_count: number;
+  hits: SearchHit[];
 }
 
 export interface SearchResult {
   query: string;
-  total_hits: number;
+  total_episodes: number;
+  total_segment_matches: number;
   page: number;
   per_page: number;
-  hits: SearchHit[];
+  episodes: EpisodeSearchResult[];
 }
 
 export interface EpisodeSummary {
@@ -32,6 +95,7 @@ export interface EpisodeSummary {
 }
 
 export interface EpisodeDetail extends EpisodeSummary {
+  audio_url: string | null;
   segments: {
     id: number;
     speaker: string | null;
@@ -53,8 +117,8 @@ export async function search(
 ): Promise<SearchResult> {
   const params = new URLSearchParams({ q, page: String(page) });
   if (show) params.set("show", show);
-  const res = await fetch(`${API_BASE}/api/search?${params}`);
-  return res.json();
+  const res = await fetchWithRetry(`${API_BASE}/api/search?${params}`);
+  return parseJSON<SearchResult>(res);
 }
 
 export async function getEpisodes(
@@ -64,18 +128,18 @@ export async function getEpisodes(
 ): Promise<{ total: number; page: number; per_page: number; episodes: EpisodeSummary[] }> {
   const params = new URLSearchParams({ page: String(page), sort });
   if (show) params.set("show", show);
-  const res = await fetch(`${API_BASE}/api/episodes?${params}`);
-  return res.json();
+  const res = await fetchWithRetry(`${API_BASE}/api/episodes?${params}`);
+  return parseJSON(res);
 }
 
 export async function getEpisode(id: number): Promise<EpisodeDetail> {
-  const res = await fetch(`${API_BASE}/api/episodes/${id}`);
-  return res.json();
+  const res = await fetchWithRetry(`${API_BASE}/api/episodes/${id}`);
+  return parseJSON<EpisodeDetail>(res);
 }
 
 export async function getShows(): Promise<{ shows: ShowInfo[] }> {
-  const res = await fetch(`${API_BASE}/api/shows`);
-  return res.json();
+  const res = await fetchWithRetry(`${API_BASE}/api/shows`);
+  return parseJSON(res);
 }
 
 export async function getStats(): Promise<{
@@ -83,8 +147,38 @@ export async function getStats(): Promise<{
   transcribed_episodes: number;
   total_segments: number;
 }> {
-  const res = await fetch(`${API_BASE}/api/stats`);
-  return res.json();
+  const res = await fetchWithRetry(`${API_BASE}/api/stats`);
+  return parseJSON(res);
+}
+
+export interface PopularKeyword {
+  keyword: string;
+  count: number;
+}
+
+export async function getPopularKeywords(
+  days = 7,
+  limit = 10
+): Promise<{ window_days: number; keywords: PopularKeyword[] }> {
+  const params = new URLSearchParams({ days: String(days), limit: String(limit) });
+  const res = await fetchWithRetry(`${API_BASE}/api/popular-keywords?${params}`);
+  return parseJSON(res);
+}
+
+export interface Contributor {
+  name: string;
+  count: number;
+  first_at: string | null;
+}
+
+export async function getContributors(
+  limit = 50
+): Promise<{ contributors: Contributor[] }> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  const res = await fetchWithRetry(
+    `${API_BASE}/api/corrections/contributors?${params}`
+  );
+  return parseJSON(res);
 }
 
 export interface CorrectionItem {
@@ -105,25 +199,53 @@ export async function submitCorrection(
   suggested_text: string,
   submitter_name = "匿名"
 ): Promise<{ status: string; id: number }> {
-  const res = await fetch(`${API_BASE}/api/corrections`, {
+  const res = await fetchWithRetry(`${API_BASE}/api/corrections`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ segment_id, suggested_text, submitter_name }),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || "提交失敗");
-  }
-  return res.json();
+  return parseJSON(res);
+}
+
+// SEC-05: admin secret travels in the X-Ingest-Secret header so it never
+// appears in URLs / Railway access logs / browser history / Referer.
+function authHeaders(secret: string): Record<string, string> {
+  return { "X-Ingest-Secret": secret };
 }
 
 export async function getCorrections(
   status = "pending",
-  page = 1
+  page = 1,
+  secret = ""
 ): Promise<{ total: number; page: number; per_page: number; corrections: CorrectionItem[] }> {
   const params = new URLSearchParams({ status, page: String(page) });
-  const res = await fetch(`${API_BASE}/api/corrections?${params}`);
-  return res.json();
+  const res = await fetchWithRetry(`${API_BASE}/api/corrections?${params}`, {
+    headers: authHeaders(secret),
+  });
+  return parseJSON(res);
+}
+
+export async function verifySecret(secret: string): Promise<boolean> {
+  try {
+    const res = await fetchWithRetry(`${API_BASE}/api/corrections/verify-secret`, {
+      headers: authHeaders(secret),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function batchApprove(
+  ids: number[],
+  secret: string
+): Promise<{ status: string; approved: number }> {
+  const res = await fetchWithRetry(`${API_BASE}/api/corrections/batch-approve`, {
+    method: "POST",
+    headers: { ...authHeaders(secret), "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  return parseJSON(res);
 }
 
 export async function reviewCorrection(
@@ -131,15 +253,11 @@ export async function reviewCorrection(
   action: "approve" | "reject",
   secret: string
 ): Promise<{ status: string }> {
-  const params = new URLSearchParams({ secret });
-  const res = await fetch(`${API_BASE}/api/corrections/${id}/${action}?${params}`, {
+  const res = await fetchWithRetry(`${API_BASE}/api/corrections/${id}/${action}`, {
     method: "POST",
+    headers: authHeaders(secret),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || "操作失敗");
-  }
-  return res.json();
+  return parseJSON(res);
 }
 
 export function formatTime(seconds: number): string {

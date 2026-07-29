@@ -1,39 +1,76 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import SearchBar from "@/components/SearchBar";
+import SearchBar, { type SearchScope } from "@/components/SearchBar";
 import SearchResults from "@/components/SearchResults";
 import EpisodeList from "@/components/EpisodeList";
-import { search, getEpisodes, getShows, getStats, type SearchHit, type EpisodeSummary, type ShowInfo } from "@/lib/api";
+import {
+  search,
+  getEpisodes,
+  getStats,
+  getPopularKeywords,
+  getContributors,
+  type EpisodeSearchResult,
+  type EpisodeSummary,
+  type PopularKeyword,
+  type Contributor,
+} from "@/lib/api";
 
 export default function Home() {
   const [query, setQuery] = useState("");
-  const [activeShow, setActiveShow] = useState<string | undefined>();
-  const [hits, setHits] = useState<SearchHit[]>([]);
-  const [totalHits, setTotalHits] = useState(0);
+  const [scope, setScope] = useState<SearchScope>("all");
+  const [searchEpisodes, setSearchEpisodes] = useState<EpisodeSearchResult[]>([]);
+  const [totalSearchEpisodes, setTotalSearchEpisodes] = useState(0);
+  const [totalSegmentMatches, setTotalSegmentMatches] = useState(0);
   const [episodes, setEpisodes] = useState<EpisodeSummary[]>([]);
-  const [shows, setShows] = useState<ShowInfo[]>([]);
   const [stats, setStats] = useState({ total_episodes: 0, transcribed_episodes: 0, total_segments: 0 });
   const [page, setPage] = useState(1);
-  const [totalEpisodes, setTotalEpisodes] = useState(0);
+  const [totalBrowseEpisodes, setTotalBrowseEpisodes] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
   const [mode, setMode] = useState<"browse" | "search">("browse");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [popularKeywords, setPopularKeywords] = useState<PopularKeyword[]>([]);
+  const [topContributors, setTopContributors] = useState<Contributor[]>([]);
+
+  // Translate scope toggle to the show= filter the backend expects.
+  // "all" sends no filter; the other three are exact show names from
+  // the backend's classification config.
+  const scopeShow = scope === "all" ? undefined : scope;
 
   useEffect(() => {
-    getShows().then((data) => setShows(data.shows)).catch(() => {});
-    getStats().then(setStats).catch(() => {});
-    loadEpisodes(1);
+    async function init() {
+      setLoading(true);
+      setLoadError(false);
+      try {
+        const statsData = await getStats();
+        setStats(statsData);
+        await loadEpisodes(1);
+      } catch {
+        setLoadError(true);
+      }
+      setLoading(false);
+    }
+    init();
+    // Popular keywords load independently — don't block the main UI
+    getPopularKeywords(7, 10)
+      .then((data) => setPopularKeywords(data.keywords))
+      .catch(() => {});
+    // Contributors leaderboard (top 5) — also async, non-blocking
+    getContributors(5)
+      .then((data) => setTopContributors(data.contributors))
+      .catch(() => {});
   }, []);
 
   async function loadEpisodes(p: number, show?: string, sort?: "newest" | "oldest") {
     try {
       const data = await getEpisodes(show, p, sort || sortOrder);
       setEpisodes(data.episodes);
-      setTotalEpisodes(data.total);
+      setTotalBrowseEpisodes(data.total);
       setPage(p);
     } catch {
-      // API not available
+      // ignore
     }
   }
 
@@ -43,12 +80,14 @@ export default function Home() {
     setIsSearching(true);
     setPage(1);
     try {
-      const result = await search(q, activeShow, 1);
-      setHits(result.hits);
-      setTotalHits(result.total_hits);
+      const result = await search(q, scopeShow, 1);
+      setSearchEpisodes(result.episodes);
+      setTotalSearchEpisodes(result.total_episodes);
+      setTotalSegmentMatches(result.total_segment_matches);
     } catch {
-      setHits([]);
-      setTotalHits(0);
+      setSearchEpisodes([]);
+      setTotalSearchEpisodes(0);
+      setTotalSegmentMatches(0);
     }
     setIsSearching(false);
   }
@@ -57,143 +96,191 @@ export default function Home() {
     setPage(newPage);
     if (mode === "search") {
       setIsSearching(true);
-      const result = await search(query, activeShow, newPage);
-      setHits(result.hits);
-      setTotalHits(result.total_hits);
+      const result = await search(query, scopeShow, newPage);
+      setSearchEpisodes(result.episodes);
+      setTotalSearchEpisodes(result.total_episodes);
+      setTotalSegmentMatches(result.total_segment_matches);
       setIsSearching(false);
     } else {
-      await loadEpisodes(newPage, activeShow);
+      await loadEpisodes(newPage, scopeShow);
     }
     window.scrollTo(0, 0);
   }
 
-  function handleShowFilter(show: string | undefined) {
-    setActiveShow(show);
+  function handleScopeChange(next: SearchScope) {
+    setScope(next);
     setPage(1);
+    const nextShow = next === "all" ? undefined : next;
     if (mode === "search" && query) {
-      search(query, show, 1).then((result) => {
-        setHits(result.hits);
-        setTotalHits(result.total_hits);
-      });
+      setIsSearching(true);
+      search(query, nextShow, 1)
+        .then((result) => {
+          setSearchEpisodes(result.episodes);
+          setTotalSearchEpisodes(result.total_episodes);
+          setTotalSegmentMatches(result.total_segment_matches);
+        })
+        .catch(() => {
+          setSearchEpisodes([]);
+          setTotalSearchEpisodes(0);
+          setTotalSegmentMatches(0);
+        })
+        .finally(() => setIsSearching(false));
     } else {
-      loadEpisodes(1, show);
+      loadEpisodes(1, nextShow);
     }
   }
 
   function handleSortChange(sort: "newest" | "oldest") {
     setSortOrder(sort);
     setPage(1);
-    loadEpisodes(1, activeShow, sort);
+    loadEpisodes(1, scopeShow, sort);
   }
 
-  const totalPages = mode === "search"
-    ? Math.ceil(totalHits / 20)
-    : Math.ceil(totalEpisodes / 20);
+  const totalPages =
+    mode === "search"
+      ? Math.ceil(totalSearchEpisodes / 20)
+      : Math.ceil(totalBrowseEpisodes / 20);
 
   return (
-    <div>
-      {/* Stats */}
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">新資料庫</h1>
-        <p className="text-gray-500">
-          {stats.transcribed_episodes} 集已轉錄 / {stats.total_segments.toLocaleString()} 段文字可搜尋
+    <main className="nrk-main">
+      {/* Hero */}
+      <section className="nrk-hero">
+        <div className="nrk-hero__eyebrow">呱吉 Podcast · 全文檢索</div>
+        <h1 className="nrk-hero__title">新資料庫</h1>
+        <p className="nrk-hero__stats">
+          <b>{stats.transcribed_episodes.toLocaleString()}</b> 集已轉錄　·
+          <b>{stats.total_segments.toLocaleString()}</b> 段文字可搜尋
         </p>
-      </div>
+      </section>
 
       {/* Search */}
-      <div className="mb-6">
-        <SearchBar initialQuery={query} onSearch={handleSearch} />
-      </div>
+      <SearchBar
+        initialQuery={query}
+        scope={scope}
+        onScopeChange={handleScopeChange}
+        onSearch={handleSearch}
+      />
 
-      {/* Show filter tabs */}
-      {shows.length > 0 && (
-        <div className="flex gap-2 mb-6 flex-wrap">
-          <button
-            onClick={() => handleShowFilter(undefined)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              !activeShow ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600 hover:bg-gray-300"
-            }`}
-          >
-            全部
-          </button>
-          {shows.map((show) => (
+      {/* Popular keywords (last 7 days) */}
+      {popularKeywords.length > 0 && (
+        <div className="nrk-popular">
+          <span className="nrk-popular__label">7 日熱門</span>
+          {popularKeywords.map((k) => (
             <button
-              key={show.name}
-              onClick={() => handleShowFilter(show.name)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                activeShow === show.name ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600 hover:bg-gray-300"
-              }`}
+              key={k.keyword}
+              onClick={() => handleSearch(k.keyword)}
+              className="nrk-popular__item"
+              title={`${k.count} 次搜尋`}
             >
-              {show.name} ({show.episode_count})
+              {k.keyword}
             </button>
           ))}
         </div>
       )}
 
-      {/* Sort toggle */}
-      {mode === "browse" && (
-        <div className="flex gap-2 mb-4 items-center">
-          <span className="text-sm text-gray-500">排序：</span>
+      {/* Contributors leaderboard (top 5) */}
+      {topContributors.length > 0 && (
+        <div className="nrk-leaders">
+          <div className="nrk-leaders__head">
+            <span className="nrk-popular__label">校對貢獻榜</span>
+            <a href="/contributors" className="nrk-leaders__more">
+              完整排行 →
+            </a>
+          </div>
+          <ol className="nrk-leaders__list">
+            {topContributors.map((c, i) => (
+              <li key={c.name} className="nrk-leaders__item">
+                <span className="nrk-leaders__rank">{i + 1}</span>
+                <span className="nrk-leaders__name">{c.name}</span>
+                <span className="nrk-leaders__count">{c.count} 筆</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {/* Loading / Error states */}
+      {loading && <div className="nrk-loading">載入中</div>}
+      {loadError && !loading && (
+        <div className="nrk-empty">
+          <p style={{ marginBottom: 16 }}>服務正在啟動中，請稍候再試</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="nrk-btn nrk-btn--primary"
+          >
+            重新載入
+          </button>
+        </div>
+      )}
+
+      {/* Sort toggle (browse only) */}
+      {mode === "browse" && !loading && !loadError && (
+        <div className="nrk-sort">
+          <span>排序</span>
           <button
             onClick={() => handleSortChange("newest")}
-            className={`px-3 py-1 rounded text-sm transition-colors ${
-              sortOrder === "newest" ? "bg-gray-800 text-white" : "bg-gray-200 text-gray-600 hover:bg-gray-300"
-            }`}
+            className={`nrk-sort__btn${sortOrder === "newest" ? " nrk-sort__btn--active" : ""}`}
           >
             最新
           </button>
           <button
             onClick={() => handleSortChange("oldest")}
-            className={`px-3 py-1 rounded text-sm transition-colors ${
-              sortOrder === "oldest" ? "bg-gray-800 text-white" : "bg-gray-200 text-gray-600 hover:bg-gray-300"
-            }`}
+            className={`nrk-sort__btn${sortOrder === "oldest" ? " nrk-sort__btn--active" : ""}`}
           >
             最舊
           </button>
         </div>
       )}
 
-      {/* Mode toggle */}
+      {/* Back to browse from search mode */}
       {mode === "search" && (
         <button
-          onClick={() => { setMode("browse"); loadEpisodes(1, activeShow); }}
-          className="text-sm text-blue-600 hover:underline mb-4 block"
+          onClick={() => {
+            setMode("browse");
+            loadEpisodes(1, scopeShow);
+          }}
+          className="nrk-back"
         >
           ← 返回集數列表
         </button>
       )}
 
       {/* Content */}
-      {isSearching ? (
-        <div className="text-center py-12 text-gray-400">搜尋中...</div>
+      {loading || loadError ? null : isSearching ? (
+        <div className="nrk-loading">搜尋中</div>
       ) : mode === "search" ? (
-        <SearchResults hits={hits} totalHits={totalHits} query={query} />
+        <SearchResults
+          episodes={searchEpisodes}
+          totalEpisodes={totalSearchEpisodes}
+          totalSegmentMatches={totalSegmentMatches}
+          query={query}
+        />
       ) : (
         <EpisodeList episodes={episodes} />
       )}
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-center gap-2 mt-8">
+      {!loading && !loadError && totalPages > 1 && (
+        <div className="nrk-pagination">
           <button
             onClick={() => handlePageChange(page - 1)}
             disabled={page <= 1}
-            className="px-4 py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-100"
+            className="nrk-btn nrk-btn--secondary"
           >
             上一頁
           </button>
-          <span className="px-4 py-2 text-gray-600">
+          <span className="nrk-mono nrk-pagination__count">
             {page} / {totalPages}
           </span>
           <button
             onClick={() => handlePageChange(page + 1)}
             disabled={page >= totalPages}
-            className="px-4 py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-100"
+            className="nrk-btn nrk-btn--secondary"
           >
             下一頁
           </button>
         </div>
       )}
-    </div>
+    </main>
   );
 }

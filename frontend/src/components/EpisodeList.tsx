@@ -8,39 +8,40 @@ interface EpisodeListProps {
 
 export default function EpisodeList({ episodes }: EpisodeListProps) {
   if (episodes.length === 0) {
-    return <p className="text-gray-500 text-center py-8">目前沒有集數</p>;
+    return (
+      <div className="nrk-empty">
+        <div className="nrk-empty__big">目前沒有集數</div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-3">
+    <div>
       {episodes.map((ep) => (
-        <a
-          key={ep.id}
-          href={`/episode/${ep.id}`}
-          className="block bg-white rounded-lg border border-gray-200 p-4 hover:border-blue-300 hover:shadow-sm transition-all"
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <span className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
-              {ep.show}
-            </span>
+        <a key={ep.id} href={`/episode/${ep.id}`} className="nrk-card">
+          <div className="nrk-meta">
+            <span className="nrk-badge nrk-badge--blue">{ep.show}</span>
             {ep.published_at && (
-              <span className="text-sm text-gray-400">
+              <span className="nrk-mono">
                 {new Date(ep.published_at).toLocaleDateString("zh-TW")}
               </span>
             )}
+            {ep.published_at && ep.duration_seconds && <span className="nrk-dot" />}
             {ep.duration_seconds && (
-              <span className="text-sm text-gray-400">
+              <span className="nrk-mono">
                 {Math.round(ep.duration_seconds / 60)} 分鐘
               </span>
             )}
           </div>
-          <h3 className="font-medium text-gray-900">{ep.title}</h3>
+          <h3 className="nrk-card__title">{ep.title}</h3>
           {ep.transcription_status === "done" ? (
-            <span className="text-xs text-green-600 mt-1 inline-block">已轉錄</span>
+            <span className="nrk-status nrk-status--done">已轉錄</span>
+          ) : ep.transcription_status === "pending" ? (
+            <span className="nrk-status nrk-status--pending">轉錄中</span>
+          ) : ep.transcription_status === "processing" ? (
+            <span className="nrk-status nrk-status--pending">轉錄中</span>
           ) : (
-            <span className="text-xs text-gray-400 mt-1 inline-block">
-              {ep.transcription_status}
-            </span>
+            <span className="nrk-status nrk-status--faint">{ep.transcription_status}</span>
           )}
         </a>
       ))}
