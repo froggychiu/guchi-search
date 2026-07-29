@@ -432,6 +432,9 @@ code, .mono, time {
 }
 .nrk-hit__text mark { background: color-mix(in srgb, var(--signal-yellow) 55%, transparent); padding: 0 2px; border-radius: 2px; color: var(--ink); font-weight: 500; }
 .nrk-hit--title-only { justify-content: flex-start; color: var(--moss-ink); }
+/* Disclosure that an episode's snippet list is capped — the badge still shows
+   the exact total, so the two numbers must not read as a contradiction. */
+.nrk-hit__note { padding: 10px 18px; color: var(--ink-faint); border-top: 1px dashed var(--line); }
 
 /* ---- Meta row ---- */
 .nrk-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; flex-wrap: wrap; }

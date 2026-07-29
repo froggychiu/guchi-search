@@ -144,6 +144,12 @@ function EpisodeResultCard({ episode }: { episode: EpisodeSearchResult }) {
               );
             })
           )}
+          {!episode.is_title_only_match &&
+            episode.hit_count > episode.hits_shown && (
+              <p className="nrk-hit__note nrk-mono">
+                僅顯示前 {episode.hits_shown} 處，共 {episode.hit_count.toLocaleString()} 處
+              </p>
+            )}
         </div>
       )}
     </div>

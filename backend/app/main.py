@@ -134,7 +134,9 @@ async def trigger_maintenance(
     """Run maintenance tasks: dedup, reclassify, reindex. Protected by secret token."""
     if not check_secret(x_ingest_secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
-    if action not in ("dedup", "reclassify", "reindex", "retry-errors", "convert-s2t", "replace-text", "scan-hallucinations"):
+    # "setup" re-applies Meilisearch index settings only — no documents are
+    # touched, so it is the cheap way to roll out a settings change.
+    if action not in ("setup", "dedup", "reclassify", "reindex", "retry-errors", "convert-s2t", "replace-text", "scan-hallucinations"):
         raise HTTPException(status_code=400, detail="Invalid action")
 
     background_tasks.add_task(_run_maintenance, action)

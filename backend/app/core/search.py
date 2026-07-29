@@ -22,4 +22,10 @@ def setup_search_index():
     # Better Chinese tokenization
     client.index(INDEX_NAME).update_dictionary([])
     client.index(INDEX_NAME).update_pagination_settings({"maxTotalHits": 5000})
+    # /api/search derives its exact episode counts from a facet distribution
+    # over episode_id. Meilisearch defaults maxValuesPerFacet to 100, which
+    # would silently truncate the distribution to the first 100 episodes and
+    # under-report both the episode count and the total match count.
+    # Must stay comfortably above the number of episodes in the corpus.
+    client.index(INDEX_NAME).update_faceting_settings({"maxValuesPerFacet": 5000})
     return index

@@ -71,7 +71,10 @@ export interface EpisodeSearchResult {
   show: string;
   published_at: string | null;
   is_title_only_match: boolean;
+  /** Exact number of matching segments in this episode. */
   hit_count: number;
+  /** How many of those are in `hits` — the backend caps snippets per episode. */
+  hits_shown: number;
   hits: SearchHit[];
 }
 
