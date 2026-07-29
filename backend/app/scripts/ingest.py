@@ -237,7 +237,7 @@ async def main():
         return
 
     if args.scan_hallucinations:
-        from app.services.transcriber import HALLUCINATION_PATTERNS
+        from app.services.transcriber import detect_hallucinations
         async with session_factory() as session:
             result = await session.execute(select(Episode).where(Episode.transcription_status == "done"))
             episodes = result.scalars().all()
@@ -248,31 +248,33 @@ async def main():
                 )
                 segments = seg_result.scalars().all()
 
-                for seg in segments:
-                    # Only check first 5 minutes
-                    if seg.start_time > 300:
-                        break
-                    for pattern in HALLUCINATION_PATTERNS:
-                        if pattern in seg.text:
-                            # Check if correction already exists
-                            existing = await session.execute(
-                                select(Correction).where(
-                                    Correction.segment_id == seg.id,
-                                    Correction.status == "pending",
-                                )
-                            )
-                            if existing.scalar_one_or_none():
-                                break
-                            correction = Correction(
-                                segment_id=seg.id,
-                                original_text=seg.text,
-                                suggested_text="（疑似幻覺，建議刪除）",
-                                submitter_name="系統自動偵測",
-                            )
-                            session.add(correction)
-                            total_flagged += 1
-                            print(f"  [FLAG] {ep.title} @ {seg.start_time:.0f}s: {seg.text[:50]}...")
-                            break
+                # Build the format detect_hallucinations expects
+                seg_dicts = [
+                    {"start_time": s.start_time, "end_time": s.end_time, "text": s.text}
+                    for s in segments
+                ]
+                flagged_indices = detect_hallucinations(seg_dicts)
+
+                for idx in flagged_indices:
+                    seg = segments[idx]
+                    # Skip if a pending correction already exists
+                    existing = await session.execute(
+                        select(Correction).where(
+                            Correction.segment_id == seg.id,
+                            Correction.status == "pending",
+                        )
+                    )
+                    if existing.scalar_one_or_none():
+                        continue
+                    correction = Correction(
+                        segment_id=seg.id,
+                        original_text=seg.text,
+                        suggested_text="（疑似幻覺，建議刪除）",
+                        submitter_name="系統自動偵測",
+                    )
+                    session.add(correction)
+                    total_flagged += 1
+                    print(f"  [FLAG] {ep.title} @ {seg.start_time:.0f}s: {seg.text[:50]}")
             await session.commit()
             print(f"[OK] Flagged {total_flagged} segments as potential hallucinations.")
         return
