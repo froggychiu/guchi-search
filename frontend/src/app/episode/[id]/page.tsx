@@ -1,23 +1,74 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
-import { getEpisode, submitCorrection, formatTime, type EpisodeDetail } from "@/lib/api";
+import { useState, useEffect, use, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  getEpisode,
+  submitCorrection,
+  formatTime,
+  type EpisodeDetail,
+} from "@/lib/api";
 
 export default function EpisodePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const searchParams = useSearchParams();
   const [episode, setEpisode] = useState<EpisodeDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingSegId, setEditingSegId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
   const [submitterName, setSubmitterName] = useState("");
   const [submitStatus, setSubmitStatus] = useState<{ segId: number; msg: string; ok: boolean } | null>(null);
+  const [activeSegId, setActiveSegId] = useState<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Fetch episode
   useEffect(() => {
     getEpisode(Number(id))
       .then(setEpisode)
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
+
+  /**
+   * When the episode finishes loading, honor `?t=` (audio seek) and
+   * `#seg-{id}` (scroll + highlight) from the URL. This fires once.
+   */
+  useEffect(() => {
+    if (!episode) return;
+
+    // Parse seek target from ?t=
+    const tParam = searchParams.get("t");
+    const seekSeconds = tParam != null ? parseFloat(tParam) : NaN;
+
+    // Parse segment target from hash
+    const hash = typeof window !== "undefined" ? window.location.hash : "";
+    const segMatch = hash.match(/^#seg-(\d+)$/);
+    const targetSegId = segMatch ? Number(segMatch[1]) : null;
+
+    // Seek audio (set currentTime once metadata is loaded).
+    // Don't auto-play — respect browser autoplay policies and user intent.
+    if (!Number.isNaN(seekSeconds) && audioRef.current) {
+      const audio = audioRef.current;
+      const apply = () => {
+        audio.currentTime = seekSeconds;
+      };
+      if (audio.readyState >= 1) apply();
+      else audio.addEventListener("loadedmetadata", apply, { once: true });
+    }
+
+    // Scroll to segment + briefly highlight
+    if (targetSegId != null) {
+      setActiveSegId(targetSegId);
+      // Wait for DOM to paint, then scroll
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`seg-${targetSegId}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      // Remove the active highlight after a few seconds
+      const timer = setTimeout(() => setActiveSegId(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [episode, searchParams]);
 
   function startEditing(segId: number, currentText: string) {
     setEditingSegId(segId);
@@ -42,119 +93,179 @@ export default function EpisodePage({ params }: { params: Promise<{ id: string }
     }
   }
 
+  /** Click a transcript line → seek audio there. Plays if paused. */
+  const handleSegmentClick = useCallback(
+    (startTime: number) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      audio.currentTime = startTime;
+      // Best-effort play; ignore if browser blocks it
+      if (audio.paused) audio.play().catch(() => {});
+    },
+    []
+  );
+
   if (loading) {
-    return <div className="text-center py-12 text-gray-400">載入中...</div>;
+    return (
+      <main className="nrk-main nrk-main--wide">
+        <div className="nrk-loading">載入中</div>
+      </main>
+    );
   }
 
   if (!episode) {
-    return <div className="text-center py-12 text-gray-500">找不到此集數</div>;
+    return (
+      <main className="nrk-main nrk-main--wide">
+        <div className="nrk-empty">
+          <div className="nrk-empty__big">找不到此集數</div>
+        </div>
+      </main>
+    );
   }
 
   return (
-    <div>
-      <a href="/" className="text-sm text-blue-600 hover:underline mb-4 block">
-        ← 返回
-      </a>
+    <main className="nrk-main nrk-main--wide">
+      <a href="/" className="nrk-back">← 返回</a>
 
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
-            {episode.show}
-          </span>
+      <div className="nrk-episode-header">
+        <div className="nrk-meta">
+          <span className="nrk-badge nrk-badge--blue">{episode.show}</span>
           {episode.published_at && (
-            <span className="text-sm text-gray-400">
+            <span className="nrk-mono">
               {new Date(episode.published_at).toLocaleDateString("zh-TW")}
             </span>
           )}
+          {episode.published_at && episode.duration_seconds && <span className="nrk-dot" />}
           {episode.duration_seconds && (
-            <span className="text-sm text-gray-400">
-              {Math.round(episode.duration_seconds / 60)} 分鐘
-            </span>
+            <span className="nrk-mono">{Math.round(episode.duration_seconds / 60)} 分鐘</span>
           )}
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">{episode.title}</h1>
-        {episode.description && (
-          <p className="text-gray-600 mt-2 text-sm leading-relaxed">{episode.description}</p>
-        )}
+        <h1>{episode.title}</h1>
+        {episode.description && <p>{episode.description}</p>}
       </div>
 
-      {/* Submitter name input */}
-      <div className="mb-4 flex items-center gap-2">
-        <label className="text-sm text-gray-500">校對者暱稱：</label>
+      {/* Sticky audio player */}
+      {episode.audio_url && (
+        <div className="nrk-player">
+          <audio
+            ref={audioRef}
+            src={episode.audio_url}
+            controls
+            preload="metadata"
+            className="nrk-player__el"
+          >
+            你的瀏覽器不支援播放此音訊格式。
+          </audio>
+        </div>
+      )}
+
+      {/* Corrector bar */}
+      <div className="nrk-corrector-bar">
+        <label htmlFor="submitter-name" style={{ color: "var(--ink-mute)" }}>
+          校對者暱稱
+        </label>
         <input
+          id="submitter-name"
           type="text"
           value={submitterName}
           onChange={(e) => setSubmitterName(e.target.value)}
           placeholder="匿名"
-          className="border border-gray-300 rounded px-2 py-1 text-sm w-32"
         />
-        <span className="text-xs text-gray-400">點擊文字旁的按鈕即可建議修正</span>
+        <span className="nrk-mono">點擊時間戳可跳播 · 點文字旁圖示可建議修正</span>
       </div>
 
       {/* Transcript */}
-      <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+      <div className="nrk-transcript">
         {episode.segments.length === 0 ? (
-          <p className="p-4 text-gray-500">尚未轉錄</p>
+          <div className="nrk-empty" style={{ padding: 32 }}>
+            <p>尚未轉錄</p>
+          </div>
         ) : (
-          episode.segments.map((seg) => (
-            <div key={seg.id} className="p-3 hover:bg-gray-50 group">
-              <div className="flex items-start gap-1">
-                <span className="text-xs text-gray-400 font-mono mr-2 mt-0.5 shrink-0">
-                  {formatTime(seg.start_time)}
-                </span>
-                {seg.speaker && (
-                  <span className="text-xs font-medium text-blue-600 mr-1 mt-0.5 shrink-0">
-                    {seg.speaker}
-                  </span>
-                )}
-                <span className="text-gray-800 text-sm flex-1">{seg.text}</span>
-                <button
-                  onClick={() => startEditing(seg.id, seg.text)}
-                  className="text-gray-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-1"
-                  title="建議修正"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
-              </div>
+          episode.segments.map((seg) => {
+            const isEditing = editingSegId === seg.id;
+            const status = submitStatus?.segId === seg.id ? submitStatus : null;
+            const isActive = activeSegId === seg.id;
+            return (
+              <div
+                id={`seg-${seg.id}`}
+                key={seg.id}
+                className={`nrk-line${isActive ? " nrk-line--active" : ""}`}
+              >
+                <div className="nrk-line__row">
+                  <button
+                    type="button"
+                    onClick={() => handleSegmentClick(seg.start_time)}
+                    className="nrk-line__time"
+                    title="從這裡開始播放"
+                    aria-label={`從 ${formatTime(seg.start_time)} 開始播放`}
+                  >
+                    {formatTime(seg.start_time)}
+                  </button>
+                  {seg.speaker && <span className="nrk-line__speaker">{seg.speaker}</span>}
+                  <span className="nrk-line__text">{seg.text}</span>
+                  {!isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => startEditing(seg.id, seg.text)}
+                      className="nrk-line__edit"
+                      aria-label="建議修正"
+                      title="建議修正"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="14"
+                        height="14"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.75"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
 
-              {/* Correction form */}
-              {editingSegId === seg.id && (
-                <div className="mt-2 ml-12 space-y-2">
-                  <textarea
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    rows={3}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleSubmit(seg.id)}
-                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                    >
-                      提交修正
-                    </button>
-                    <button
-                      onClick={cancelEditing}
-                      className="px-3 py-1 bg-gray-200 text-gray-600 text-sm rounded hover:bg-gray-300"
-                    >
-                      取消
-                    </button>
+                {isEditing && (
+                  <div className="nrk-line__form">
+                    <textarea
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      rows={3}
+                    />
+                    <div className="nrk-line__form-actions">
+                      <button
+                        type="button"
+                        onClick={() => handleSubmit(seg.id)}
+                        className="nrk-btn nrk-btn--primary"
+                      >
+                        提交修正
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEditing}
+                        className="nrk-btn nrk-btn--secondary"
+                      >
+                        取消
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Submit status */}
-              {submitStatus && submitStatus.segId === seg.id && (
-                <div className={`mt-1 ml-12 text-xs ${submitStatus.ok ? "text-green-600" : "text-red-500"}`}>
-                  {submitStatus.msg}
-                </div>
-              )}
-            </div>
-          ))
+                {status && (
+                  <div
+                    className="nrk-line__status"
+                    style={{ color: status.ok ? "var(--signal-green)" : "var(--signal-red)" }}
+                  >
+                    {status.msg}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
-    </div>
+    </main>
   );
 }

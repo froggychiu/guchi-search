@@ -1,21 +1,39 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getCorrections, reviewCorrection, formatTime, type CorrectionItem } from "@/lib/api";
+import {
+  getCorrections,
+  reviewCorrection,
+  verifySecret,
+  batchApprove,
+  formatTime,
+  type CorrectionItem,
+} from "@/lib/api";
 
 export default function AdminPage() {
   const [secret, setSecret] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
   const [corrections, setCorrections] = useState<CorrectionItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState("pending");
   const [actionMsg, setActionMsg] = useState<{ id: number; msg: string; ok: boolean } | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [batchLoading, setBatchLoading] = useState(false);
 
-  function handleLogin() {
-    if (secret.trim()) {
+  async function handleLogin() {
+    if (!secret.trim()) return;
+    setLoginLoading(true);
+    setLoginError("");
+    const ok = await verifySecret(secret);
+    setLoginLoading(false);
+    if (ok) {
       setAuthenticated(true);
       loadCorrections(1, filter);
+    } else {
+      setLoginError("金鑰錯誤，請重新輸入");
     }
   }
 
@@ -25,6 +43,7 @@ export default function AdminPage() {
       setCorrections(data.corrections);
       setTotal(data.total);
       setPage(p);
+      setSelected(new Set());
     } catch {
       // ignore
     }
@@ -40,12 +59,49 @@ export default function AdminPage() {
     try {
       await reviewCorrection(id, action, secret);
       setActionMsg({ id, msg: action === "approve" ? "已批准" : "已拒絕", ok: true });
-      // Remove from list
       setCorrections((prev) => prev.filter((c) => c.id !== id));
       setTotal((prev) => prev - 1);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "操作失敗";
       setActionMsg({ id, msg, ok: false });
+    }
+  }
+
+  async function handleBatchApprove() {
+    if (selected.size === 0) return;
+    setBatchLoading(true);
+    try {
+      const result = await batchApprove(Array.from(selected), secret);
+      setCorrections((prev) => prev.filter((c) => !selected.has(c.id)));
+      setTotal((prev) => prev - result.approved);
+      setSelected(new Set());
+      setActionMsg({ id: -1, msg: `已批次批准 ${result.approved} 筆`, ok: true });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "批次批准失敗";
+      setActionMsg({ id: -1, msg, ok: false });
+    }
+    setBatchLoading(false);
+  }
+
+  function toggleSelect(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === corrections.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(corrections.map((c) => c.id)));
     }
   }
 
@@ -53,38 +109,43 @@ export default function AdminPage() {
 
   if (!authenticated) {
     return (
-      <div className="max-w-md mx-auto mt-16">
-        <h1 className="text-2xl font-bold mb-4">管理員登入</h1>
-        <input
-          type="password"
-          value={secret}
-          onChange={(e) => setSecret(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-          placeholder="輸入管理金鑰"
-          className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-3"
-        />
-        <button
-          onClick={handleLogin}
-          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
-        >
-          登入
-        </button>
-      </div>
+      <main className="nrk-main">
+        <div className="nrk-login">
+          <h1>管理員登入</h1>
+          <label htmlFor="admin-secret" className="sr-only" style={{ position: "absolute", left: "-9999px" }}>
+            管理金鑰
+          </label>
+          <input
+            id="admin-secret"
+            type="password"
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            placeholder="輸入管理金鑰"
+          />
+          {loginError && <p className="nrk-login__error">{loginError}</p>}
+          <button
+            onClick={handleLogin}
+            disabled={loginLoading}
+            className="nrk-btn nrk-btn--primary"
+          >
+            {loginLoading ? "驗證中" : "登入"}
+          </button>
+        </div>
+      </main>
     );
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">校對審核</h1>
-        <div className="flex gap-2">
+    <main className="nrk-main nrk-main--wide">
+      <div className="nrk-admin-head">
+        <h1>校對審核</h1>
+        <div className="nrk-chips" style={{ margin: 0 }}>
           {(["pending", "approved", "rejected"] as const).map((s) => (
             <button
               key={s}
               onClick={() => setFilter(s)}
-              className={`px-3 py-1 rounded text-sm ${
-                filter === s ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600 hover:bg-gray-300"
-              }`}
+              className={`nrk-chip${filter === s ? " nrk-chip--active" : ""}`}
             >
               {{ pending: "待審核", approved: "已批准", rejected: "已拒絕" }[s]}
             </button>
@@ -92,89 +153,141 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <p className="text-sm text-gray-500 mb-4">共 {total} 筆</p>
+      <div className="nrk-admin-toolbar">
+        <span>共 {total.toLocaleString()} 筆</span>
+        {filter === "pending" && corrections.length > 0 && (
+          <>
+            <span className="nrk-admin-toolbar__spacer" />
+            <label className="nrk-admin-toolbar__select">
+              <input
+                type="checkbox"
+                checked={selected.size === corrections.length && corrections.length > 0}
+                onChange={toggleSelectAll}
+              />
+              全選 ({selected.size}/{corrections.length})
+            </label>
+            <button
+              onClick={handleBatchApprove}
+              disabled={selected.size === 0 || batchLoading}
+              className="nrk-btn nrk-btn--success"
+            >
+              {batchLoading ? "處理中" : `批次批准 (${selected.size})`}
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Global batch message */}
+      {actionMsg && actionMsg.id === -1 && (
+        <p
+          className="nrk-correction__status"
+          style={{
+            marginBottom: 12,
+            color: actionMsg.ok ? "var(--signal-green)" : "var(--signal-red)",
+          }}
+        >
+          {actionMsg.msg}
+        </p>
+      )}
 
       {corrections.length === 0 ? (
-        <p className="text-gray-400 text-center py-12">沒有{filter === "pending" ? "待審核的" : ""}修正建議</p>
+        <div className="nrk-empty">
+          <div className="nrk-empty__big">
+            沒有{filter === "pending" ? "待審核的" : ""}修正建議
+          </div>
+          {filter === "pending" && <p>有新的建議進來時會顯示在這裡</p>}
+        </div>
       ) : (
-        <div className="space-y-4">
-          {corrections.map((c) => (
-            <div key={c.id} className="bg-white border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <a
-                  href={`/episode/${c.episode_id}`}
-                  className="text-sm text-blue-600 hover:underline font-medium"
-                >
-                  {c.episode_title}
-                </a>
-                <span className="text-xs text-gray-400 font-mono">
-                  {formatTime(c.start_time)}
-                </span>
-                <span className="text-xs text-gray-400 ml-auto">
-                  {c.submitter_name} · {new Date(c.created_at).toLocaleDateString("zh-TW")}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <p className="text-xs text-gray-400 mb-1">原文</p>
-                  <p className="text-sm text-gray-600 bg-red-50 rounded p-2">{c.original_text}</p>
+        <div>
+          {corrections.map((c) => {
+            const status = actionMsg?.id === c.id ? actionMsg : null;
+            const isSelected = selected.has(c.id);
+            return (
+              <div
+                key={c.id}
+                className={`nrk-correction${isSelected ? " nrk-correction--selected" : ""}`}
+              >
+                <div className="nrk-correction__meta">
+                  {filter === "pending" && (
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelect(c.id)}
+                      aria-label="選取此項"
+                    />
+                  )}
+                  <a href={`/episode/${c.episode_id}`}>{c.episode_title}</a>
+                  <span className="nrk-mono">{formatTime(c.start_time)}</span>
+                  <span className="nrk-mono">
+                    {c.submitter_name} · {new Date(c.created_at).toLocaleDateString("zh-TW")}
+                  </span>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-400 mb-1">建議修正</p>
-                  <p className="text-sm text-gray-800 bg-green-50 rounded p-2">{c.suggested_text}</p>
-                </div>
-              </div>
 
-              {filter === "pending" && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleReview(c.id, "approve")}
-                    className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                <div className="nrk-diff">
+                  <div className="nrk-diff__col nrk-diff__col--before">
+                    <label>原文</label>
+                    <p>{c.original_text}</p>
+                  </div>
+                  <div className="nrk-diff__col nrk-diff__col--after">
+                    <label>建議修正</label>
+                    <p>{c.suggested_text}</p>
+                  </div>
+                </div>
+
+                {filter === "pending" && (
+                  <div className="nrk-correction__actions">
+                    <button
+                      onClick={() => handleReview(c.id, "approve")}
+                      className="nrk-btn nrk-btn--success"
+                    >
+                      批准
+                    </button>
+                    <button
+                      onClick={() => handleReview(c.id, "reject")}
+                      className="nrk-btn nrk-btn--destructive"
+                    >
+                      拒絕
+                    </button>
+                  </div>
+                )}
+
+                {status && (
+                  <p
+                    className={`nrk-correction__status ${
+                      status.ok ? "nrk-correction__status--ok" : "nrk-correction__status--err"
+                    }`}
                   >
-                    批准
-                  </button>
-                  <button
-                    onClick={() => handleReview(c.id, "reject")}
-                    className="px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
-                  >
-                    拒絕
-                  </button>
-                </div>
-              )}
-
-              {actionMsg && actionMsg.id === c.id && (
-                <p className={`text-xs mt-1 ${actionMsg.ok ? "text-green-600" : "text-red-500"}`}>
-                  {actionMsg.msg}
-                </p>
-              )}
-            </div>
-          ))}
+                    {status.msg}
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex justify-center gap-2 mt-8">
+        <div className="nrk-pagination">
           <button
             onClick={() => loadCorrections(page - 1, filter)}
             disabled={page <= 1}
-            className="px-4 py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-100"
+            className="nrk-btn nrk-btn--secondary"
           >
             上一頁
           </button>
-          <span className="px-4 py-2 text-gray-600">
+          <span className="nrk-mono nrk-pagination__count">
             {page} / {totalPages}
           </span>
           <button
             onClick={() => loadCorrections(page + 1, filter)}
             disabled={page >= totalPages}
-            className="px-4 py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-100"
+            className="nrk-btn nrk-btn--secondary"
           >
             下一頁
           </button>
         </div>
       )}
-    </div>
+    </main>
   );
 }
