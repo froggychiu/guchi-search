@@ -54,6 +54,19 @@ class Segment(Base):
         }
 
 
+class SearchLog(Base):
+    """Records every /api/search call for popular-keyword analytics.
+
+    No user identifier stored — only the query text and timestamp.
+    Used to compute trending keywords over recent time windows.
+    """
+    __tablename__ = "search_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    query: Mapped[str] = mapped_column(String(200), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
 class Correction(Base):
     __tablename__ = "corrections"
 
