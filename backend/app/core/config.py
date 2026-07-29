@@ -32,8 +32,12 @@ class Settings(BaseSettings):
     # Ingest cron secret (for triggering ingest via API)
     ingest_secret: str = ""
 
-    # CORS
-    cors_origins: list[str] = ["*"]
+    # CORS — defaults are explicit so prod can never silently fall back to "*".
+    # Override in Railway with GUCHI_CORS_ORIGINS='["https://sear.newfolderla.com"]'
+    cors_origins: list[str] = [
+        "https://sear.newfolderla.com",
+        "http://localhost:3000",
+    ]
 
     model_config = {"env_file": ".env", "env_prefix": "GUCHI_"}
 

@@ -1,19 +1,47 @@
 import logging
+import os
+from contextlib import asynccontextmanager
 
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+from app.core.security import check_secret, require_secret
 
 from app.api.search import router as search_router
 from app.api.corrections import router as corrections_router
 from app.core.config import settings
+from app.core.database import Base, engine
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Ensure all tables exist before serving traffic.
+    Idempotent — create_all skips tables that already exist.
+    """
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables verified / created.")
+    except Exception as e:
+        logger.warning(f"Skipping table create at startup: {e}")
+    yield
+
+
+# SEC-03: hide schema/docs in prod. GUCHI_ENV=development opens them locally.
+_ENV = os.getenv("GUCHI_ENV", "production")
+_DOCS_ENABLED = _ENV == "development"
 
 app = FastAPI(
     title="新資料庫",
     description="全文檢索呱吉頻道的 Podcast 逐字稿",
     version="1.0.0",
+    lifespan=lifespan,
+    docs_url="/docs" if _DOCS_ENABLED else None,
+    redoc_url="/redoc" if _DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if _DOCS_ENABLED else None,
 )
 
 app.add_middleware(
@@ -53,9 +81,7 @@ async def trigger_ingest(
     x_ingest_secret: str = Header(None),
 ):
     """Trigger ingestion of new episodes. Protected by secret token."""
-    if not settings.ingest_secret:
-        raise HTTPException(status_code=503, detail="Ingest secret not configured")
-    if x_ingest_secret != settings.ingest_secret:
+    if not check_secret(x_ingest_secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     background_tasks.add_task(_run_ingest, limit)
@@ -79,9 +105,7 @@ async def trigger_reindex(
     x_ingest_secret: str = Header(None),
 ):
     """Re-index all transcribed episodes into Meilisearch. Protected by secret token."""
-    if not settings.ingest_secret:
-        raise HTTPException(status_code=503, detail="Ingest secret not configured")
-    if x_ingest_secret != settings.ingest_secret:
+    if not check_secret(x_ingest_secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     background_tasks.add_task(_run_reindex)
@@ -108,9 +132,7 @@ async def trigger_maintenance(
     x_ingest_secret: str = Header(None),
 ):
     """Run maintenance tasks: dedup, reclassify, reindex. Protected by secret token."""
-    if not settings.ingest_secret:
-        raise HTTPException(status_code=503, detail="Ingest secret not configured")
-    if x_ingest_secret != settings.ingest_secret:
+    if not check_secret(x_ingest_secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
     if action not in ("dedup", "reclassify", "reindex", "retry-errors", "convert-s2t", "replace-text", "scan-hallucinations"):
         raise HTTPException(status_code=400, detail="Invalid action")
@@ -131,9 +153,7 @@ async def replace_text(
     x_ingest_secret: str = Header(None),
 ):
     """Replace text across all segments. Protected by secret token."""
-    if not settings.ingest_secret:
-        raise HTTPException(status_code=503, detail="Ingest secret not configured")
-    if x_ingest_secret != settings.ingest_secret:
+    if not check_secret(x_ingest_secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     background_tasks.add_task(_run_maintenance, "replace-text", [body.old_text, body.new_text])
