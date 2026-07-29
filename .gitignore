@@ -11,6 +11,14 @@ venv/
 node_modules/
 .next/
 out/
+*.tsbuildinfo
+
+# Tooling artifacts
+.playwright-mcp/
+
+# Operator handbook — contains the plaintext ingest secret and Railway
+# tokens, so it stays local. See qa-reports/dev-handoff-20260429.md 第 0 章.
+HANDOFF.md
 
 # IDE
 .vscode/
