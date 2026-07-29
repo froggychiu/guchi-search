@@ -5,12 +5,27 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.database import get_db
+from app.core.security import check_secret, require_secret
 from app.models.episode import Correction, Segment, Episode
 from app.services.indexer import index_episode_segments
 
 router = APIRouter(prefix="/api/corrections", tags=["corrections"])
+
+
+@router.get("/verify-secret")
+async def verify_secret(x_ingest_secret: str = Header(None)):
+    """Verify the admin secret (sent via X-Ingest-Secret header).
+
+    SEC-05 / SEC-06: header-only (no query param), constant-time compare.
+    """
+    if not check_secret(x_ingest_secret):
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    return {"status": "ok"}
+
+
+class BatchApproveRequest(BaseModel):
+    ids: list[int]
 
 
 class CorrectionSubmit(BaseModel):
@@ -51,14 +66,59 @@ async def submit_correction(
     return {"status": "submitted", "id": correction.id}
 
 
-@router.get("")
+@router.get("/contributors")
+async def list_contributors(
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+):
+    """Leaderboard of named contributors who submitted approved corrections.
+
+    Excludes:
+      - "匿名" / empty submitter_name — lumps multiple distinct people into
+        one bucket, so counting them on a leaderboard would be misleading.
+      - "系統自動偵測" — bot-generated entries from the hallucination scanner
+        in ingest.py; not a human contributor.
+
+    Sorted by adopted-correction count desc, then earliest submission asc
+    (whoever reached that count first wins the tie).
+    """
+    stmt = (
+        select(
+            Correction.submitter_name.label("name"),
+            func.count(Correction.id).label("count"),
+            func.min(Correction.created_at).label("first_at"),
+        )
+        .where(
+            Correction.status == "approved",
+            Correction.submitter_name != "匿名",
+            Correction.submitter_name != "",
+            Correction.submitter_name != "系統自動偵測",
+        )
+        .group_by(Correction.submitter_name)
+        .order_by(func.count(Correction.id).desc(), func.min(Correction.created_at).asc())
+        .limit(limit)
+    )
+    rows = (await db.execute(stmt)).all()
+    return {
+        "contributors": [
+            {
+                "name": row.name,
+                "count": row.count,
+                "first_at": row.first_at.isoformat() if row.first_at else None,
+            }
+            for row in rows
+        ],
+    }
+
+
+@router.get("", dependencies=[Depends(require_secret)])
 async def list_corrections(
     status: str = Query("pending"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    """List correction suggestions (for admin review)."""
+    """List correction suggestions (for admin review). Admin-only."""
     count_query = select(func.count(Correction.id)).where(Correction.status == status)
     total = (await db.execute(count_query)).scalar() or 0
 
@@ -92,16 +152,52 @@ async def list_corrections(
     return {"total": total, "page": page, "per_page": per_page, "corrections": items}
 
 
+@router.post("/batch-approve")
+async def batch_approve(
+    body: BatchApproveRequest,
+    x_ingest_secret: str = Header(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Batch approve multiple corrections at once."""
+    if not check_secret(x_ingest_secret):
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
+    approved = 0
+    episodes_to_reindex = set()
+    for cid in body.ids:
+        correction = await db.get(Correction, cid)
+        if not correction or correction.status != "pending":
+            continue
+
+        segment = await db.get(Segment, correction.segment_id)
+        if segment:
+            segment.text = correction.suggested_text
+            episodes_to_reindex.add(segment.episode_id)
+
+        correction.status = "approved"
+        correction.reviewed_at = datetime.utcnow()
+        approved += 1
+
+    await db.commit()
+
+    # Re-index affected episodes
+    for episode_id in episodes_to_reindex:
+        try:
+            await index_episode_segments(db, episode_id)
+        except Exception:
+            pass
+
+    return {"status": "ok", "approved": approved}
+
+
 @router.post("/{correction_id}/approve")
 async def approve_correction(
     correction_id: int,
-    secret: str = Query(None),
     x_ingest_secret: str = Header(None),
     db: AsyncSession = Depends(get_db),
 ):
     """Approve a correction and update the segment text."""
-    provided_secret = secret or x_ingest_secret
-    if not settings.ingest_secret or provided_secret != settings.ingest_secret:
+    if not check_secret(x_ingest_secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     correction = await db.get(Correction, correction_id)
@@ -132,13 +228,11 @@ async def approve_correction(
 @router.post("/{correction_id}/reject")
 async def reject_correction(
     correction_id: int,
-    secret: str = Query(None),
     x_ingest_secret: str = Header(None),
     db: AsyncSession = Depends(get_db),
 ):
     """Reject a correction suggestion."""
-    provided_secret = secret or x_ingest_secret
-    if not settings.ingest_secret or provided_secret != settings.ingest_secret:
+    if not check_secret(x_ingest_secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     correction = await db.get(Correction, correction_id)
