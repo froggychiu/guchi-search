@@ -152,7 +152,7 @@ async def main():
     parser.add_argument("--retry-errors", action="store_true", help="Reset error/processing episodes to pending and re-transcribe")
     parser.add_argument("--apply-vocab", action="store_true", help="Apply all active glossary rules to existing segments")
     parser.add_argument("--normalize-tw", action="store_true", help="Repair non-Taiwan Traditional variants (爲->為, 喫->吃, 纔->才 ...) in existing segments")
-    parser.add_argument("--dry-run", action="store_true", help="With --normalize-tw: report what would change without writing")
+    parser.add_argument("--dry-run", action="store_true", help="With --normalize-tw / --apply-vocab: report what would change without writing")
     parser.add_argument("--replace-text", nargs=2, metavar=("OLD", "NEW"), help="Replace text in all segments")
     parser.add_argument("--scan-hallucinations", action="store_true", help="Scan existing transcripts for hallucinations and create correction entries")
     parser.add_argument("--episode-id", type=int, help="Transcribe a specific episode")
@@ -239,136 +239,19 @@ async def main():
     if args.normalize_tw:
         # Repairs transcripts produced before the OpenCC config was fixed —
         # see app/services/text_normalize.py for why s2t was the wrong choice.
-        # Reports a per-substitution breakdown either way; --dry-run stops
-        # before writing, so a ~2.6M row rewrite can be inspected first.
-        import collections
-        import difflib
-
+        from app.scripts.rewrite import print_report, rewrite_segments
         from app.services.text_normalize import normalize_variants
 
-        subs: collections.Counter = collections.Counter()
         async with session_factory() as session:
-            result = await session.execute(select(Segment))
-            segments = result.scalars().all()
-            changed = 0
-            for seg in segments:
-                new_text = normalize_variants(seg.text)
-                if new_text == seg.text:
-                    continue
-                changed += 1
-                matcher = difflib.SequenceMatcher(None, seg.text, new_text, autojunk=False)
-                for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-                    if tag != "equal":
-                        subs[(seg.text[i1:i2], new_text[j1:j2])] += 1
-                if not args.dry_run:
-                    seg.text = new_text
-
-            print(f"[{'DRY-RUN' if args.dry_run else 'OK'}] "
-                  f"{changed} / {len(segments)} segments affected")
-            for (old, new), n in subs.most_common(40):
-                print(f"    {n:>7}x  {old} -> {new}")
-
-            if args.dry_run:
-                print("[DRY-RUN] nothing written. Re-run without --dry-run to apply.")
-                return
-            await session.commit()
-            print(f"[OK] Rewrote {changed} segments. Re-index to update search.")
-        return
-
-    if args.apply_vocab:
-        # Backfills the glossary over existing transcripts. Separate from
-        # approving a rule on purpose: approval decides what future episodes
-        # get, this decides whether to rewrite history.
-        from app.models.episode import VocabRule
-
-        async with session_factory() as session:
-            rules = await load_active_rules(session)
-            if not rules:
-                print("[OK] No active glossary rules.")
-                return
-            print(f"[...] {len(rules)} active rules")
-
-            result = await session.execute(select(Segment))
-            segments = result.scalars().all()
-            per_rule = {wrong: 0 for wrong, _ in rules}
-            changed = 0
-            for seg in segments:
-                new_text = seg.text
-                for wrong, right in rules:
-                    if wrong in new_text:
-                        per_rule[wrong] += new_text.count(wrong)
-                        new_text = new_text.replace(wrong, right)
-                if new_text != seg.text:
-                    changed += 1
-                    if not args.dry_run:
-                        seg.text = new_text
-
-            print(f"[{'DRY-RUN' if args.dry_run else 'OK'}] "
-                  f"{changed} / {len(segments)} segments affected")
-            for wrong, right in rules:
-                print(f"    {per_rule[wrong]:>7}x  {wrong} -> {right}")
-
-            if args.dry_run:
-                print("[DRY-RUN] nothing written.")
-                return
-
-            # Record what each rule actually did, so a rule that matched far
-            # more than its author expected is visible in the admin list.
-            for wrong, right in rules:
-                row = await session.execute(
-                    select(VocabRule).where(
-                        VocabRule.wrong_text == wrong,
-                        VocabRule.right_text == right,
-                    )
-                )
-                rule = row.scalar_one_or_none()
-                if rule:
-                    rule.applied_count = per_rule[wrong]
-            await session.commit()
-            print(f"[OK] Rewrote {changed} segments. Re-index to update search.")
-        return
-
-    if args.scan_hallucinations:
-        from app.services.transcriber import detect_hallucinations
-        async with session_factory() as session:
-            result = await session.execute(select(Episode).where(Episode.transcription_status == "done"))
-            episodes = result.scalars().all()
-            total_flagged = 0
-            for ep in episodes:
-                seg_result = await session.execute(
-                    select(Segment).where(Segment.episode_id == ep.id).order_by(Segment.start_time.asc())
-                )
-                segments = seg_result.scalars().all()
-
-                # Build the format detect_hallucinations expects
-                seg_dicts = [
-                    {"start_time": s.start_time, "end_time": s.end_time, "text": s.text}
-                    for s in segments
-                ]
-                flagged_indices = detect_hallucinations(seg_dicts)
-
-                for idx in flagged_indices:
-                    seg = segments[idx]
-                    # Skip if a pending correction already exists
-                    existing = await session.execute(
-                        select(Correction).where(
-                            Correction.segment_id == seg.id,
-                            Correction.status == "pending",
-                        )
-                    )
-                    if existing.scalar_one_or_none():
-                        continue
-                    correction = Correction(
-                        segment_id=seg.id,
-                        original_text=seg.text,
-                        suggested_text="（疑似幻覺，建議刪除）",
-                        submitter_name="系統自動偵測",
-                    )
-                    session.add(correction)
-                    total_flagged += 1
-                    print(f"  [FLAG] {ep.title} @ {seg.start_time:.0f}s: {seg.text[:50]}")
-            await session.commit()
-            print(f"[OK] Flagged {total_flagged} segments as potential hallucinations.")
+            scanned, changed, subs = await rewrite_segments(
+                session,
+                normalize_variants,
+                dry_run=args.dry_run,
+                label="normalize-tw",
+            )
+            print_report("normalize-tw", scanned, changed, subs, args.dry_run)
+            if not args.dry_run:
+                print("[OK] Re-index to update search.")
         return
 
     if args.replace_text:
