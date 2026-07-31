@@ -1,12 +1,9 @@
 import os
 import math
 from openai import OpenAI
-from opencc import OpenCC
 
 from app.core.config import settings
-
-# Simplified Chinese → Traditional Chinese converter
-_s2t = OpenCC("s2t")
+from app.services.text_normalize import to_taiwan_traditional
 
 # Groq supports up to 100MB via URL, but for file upload we keep 25MB limit
 MAX_FILE_SIZE_MB = 24
@@ -155,14 +152,14 @@ def _transcribe_single(client: OpenAI, model: str, file_path: str) -> list[dict]
             segments.append({
                 "start_time": getattr(seg, "start", 0),
                 "end_time": getattr(seg, "end", 0),
-                "text": _s2t.convert(getattr(seg, "text", "").strip()),
+                "text": to_taiwan_traditional(getattr(seg, "text", "").strip()),
             })
     else:
         # Fallback: treat the whole transcription as one segment
         segments.append({
             "start_time": 0.0,
             "end_time": 0.0,
-            "text": _s2t.convert(response.text.strip()),
+            "text": to_taiwan_traditional(response.text.strip()),
         })
 
     return segments

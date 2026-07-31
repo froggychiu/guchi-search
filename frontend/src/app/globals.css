@@ -432,6 +432,36 @@ code, .mono, time {
 }
 .nrk-hit__text mark { background: color-mix(in srgb, var(--signal-yellow) 55%, transparent); padding: 0 2px; border-radius: 2px; color: var(--ink); font-weight: 500; }
 .nrk-hit--title-only { justify-content: flex-start; color: var(--moss-ink); }
+/* Glossary review queue (/admin/vocab). */
+.nrk-page-title { font: var(--text-h1); color: var(--ink); margin-bottom: 8px; }
+.nrk-lede { font: var(--text-body-sm); line-height: 1.7; color: var(--ink-mute); margin-bottom: 20px; }
+.nrk-lede strong { color: var(--ink-soft); }
+.nrk-vocab-rule { display: flex; gap: 10px; align-items: baseline; font: var(--text-h3); }
+.nrk-vocab-rule__wrong { color: var(--signal-red); text-decoration: line-through; }
+.nrk-vocab-rule__right { color: var(--moss-ink); font-weight: 600; }
+.nrk-vocab-warn {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--signal-red-soft);
+  border-radius: var(--radius-xs);
+  font: var(--text-body-sm);
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+/* Glossary opt-in inside the correction form. */
+.nrk-vocab-opt {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 10px 0 4px;
+  font: var(--text-body-sm);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.nrk-vocab-opt input { margin-top: 3px; flex-shrink: 0; }
+.nrk-vocab-opt em { color: var(--ink-faint); font-style: normal; }
+
 /* Did-you-mean on an empty result. Reads as a link but is a button, because
    it re-runs the search in place rather than navigating. */
 .nrk-suggest {

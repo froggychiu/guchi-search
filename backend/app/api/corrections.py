@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import check_secret, require_secret
-from app.models.episode import Correction, Segment, Episode
+from app.models.episode import Correction, Segment, Episode, VocabRule
 from app.services.indexer import index_episode_segments
+from app.services.vocab import derive_rule
 
 router = APIRouter(prefix="/api/corrections", tags=["corrections"])
 
@@ -32,6 +33,10 @@ class CorrectionSubmit(BaseModel):
     segment_id: int
     suggested_text: str
     submitter_name: str = "匿名"
+    # When set, the edit is also proposed as a glossary rule so the same
+    # mistake gets fixed in every other episode. Proposed only — an admin
+    # reviews it before it is ever applied (see services/vocab.py).
+    add_to_vocab: bool = False
 
 
 @router.post("")
@@ -61,9 +66,40 @@ async def submit_correction(
         submitter_name=body.submitter_name or "匿名",
     )
     db.add(correction)
+
+    # A glossary proposal, if the edit is a single self-contained substitution
+    # and no equivalent rule is already on file.
+    vocab_rule = None
+    if body.add_to_vocab:
+        derived = derive_rule(segment.text, body.suggested_text)
+        if derived:
+            wrong, right = derived
+            existing = await db.execute(
+                select(VocabRule).where(
+                    VocabRule.wrong_text == wrong,
+                    VocabRule.right_text == right,
+                )
+            )
+            if existing.scalar_one_or_none() is None:
+                vocab_rule = VocabRule(
+                    wrong_text=wrong,
+                    right_text=right,
+                    submitter_name=body.submitter_name or "匿名",
+                )
+                db.add(vocab_rule)
+
     await db.commit()
 
-    return {"status": "submitted", "id": correction.id}
+    return {
+        "status": "submitted",
+        "id": correction.id,
+        # Tells the UI whether the glossary checkbox actually produced
+        # anything — the edit may not have been glossary-shaped.
+        "vocab_rule": (
+            {"wrong": vocab_rule.wrong_text, "right": vocab_rule.right_text}
+            if vocab_rule else None
+        ),
+    }
 
 
 @router.get("/contributors")

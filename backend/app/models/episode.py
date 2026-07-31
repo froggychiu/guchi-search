@@ -67,6 +67,40 @@ class SearchLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
+class VocabRule(Base):
+    """A recurring transcription mistake and its fix, applied at ingest.
+
+    Whisper mishears the show's proper nouns the same way over and over —
+    彩玲 for 采翎, 瓜子 for 呱吉, 全智隆 for 權志龍, 貝巴尼 for Bad Bunny.
+    These cannot be solved with a better prompt: Whisper's prompt is capped at
+    224 tokens (~200 Chinese characters) and the existing one already spends
+    most of that on five names. So the glossary lives here and is applied
+    after transcription instead.
+
+    Rules are NOT auto-applied on creation. `wrong_text` is often a real word
+    in its own right — the corpus has 519 segments containing 瓜子 (melon
+    seeds) and 126 containing 里昂 (Lyon), so blanket replacement would
+    corrupt legitimate text. An admin reviews each rule with its corpus
+    occurrence count in front of them and decides. This is the same judgement
+    recorded in HANDOFF 10.2, where 又先/右先/有先 → 祐先 was rejected for
+    being too destructive.
+    """
+    __tablename__ = "vocab_rules"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    wrong_text: Mapped[str] = mapped_column(String(100), index=True)
+    right_text: Mapped[str] = mapped_column(String(100))
+    # pending -> an admin has not judged it yet; only "active" rules are applied
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    note: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    submitter_name: Mapped[str] = mapped_column(String(100), default="匿名")
+    # Segments rewritten the last time this rule ran, for spotting a rule that
+    # is matching far more than its author expected.
+    applied_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class Correction(Base):
     __tablename__ = "corrections"
 

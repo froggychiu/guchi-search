@@ -16,6 +16,9 @@ export default function EpisodePage({ params }: { params: Promise<{ id: string }
   const [loading, setLoading] = useState(true);
   const [editingSegId, setEditingSegId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
+  // Offers the edit as a glossary rule so the same mishearing gets fixed
+  // in every other episode. Off by default — most edits are one-offs.
+  const [addToVocab, setAddToVocab] = useState(false);
   const [submitterName, setSubmitterName] = useState("");
   const [submitStatus, setSubmitStatus] = useState<{ segId: number; msg: string; ok: boolean } | null>(null);
   const [activeSegId, setActiveSegId] = useState<number | null>(null);
@@ -84,9 +87,23 @@ export default function EpisodePage({ params }: { params: Promise<{ id: string }
   async function handleSubmit(segId: number) {
     if (!editText.trim()) return;
     try {
-      await submitCorrection(segId, editText.trim(), submitterName || "匿名");
-      setSubmitStatus({ segId, msg: "已提交，等待審核", ok: true });
+      const result = await submitCorrection(
+        segId,
+        editText.trim(),
+        submitterName || "匿名",
+        addToVocab
+      );
+      // Say plainly whether the glossary part took. An edit with several
+      // separate changes is still a valid correction but cannot become a
+      // rule, and silently ignoring the checkbox would be misleading.
+      const msg = result.vocab_rule
+        ? `已提交，等待審核。詞彙「${result.vocab_rule.wrong}→${result.vocab_rule.right}」也已送審`
+        : addToVocab
+          ? "已提交，等待審核。此修改包含多處變動，無法建立詞彙規則"
+          : "已提交，等待審核";
+      setSubmitStatus({ segId, msg, ok: true });
       setEditingSegId(null);
+      setAddToVocab(false);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "提交失敗";
       setSubmitStatus({ segId, msg, ok: false });
@@ -234,6 +251,17 @@ export default function EpisodePage({ params }: { params: Promise<{ id: string }
                       onChange={(e) => setEditText(e.target.value)}
                       rows={3}
                     />
+                    <label className="nrk-vocab-opt">
+                      <input
+                        type="checkbox"
+                        checked={addToVocab}
+                        onChange={(e) => setAddToVocab(e.target.checked)}
+                      />
+                      <span>
+                        這是反覆出現的錯字／人名
+                        <em>　送審後將自動修正其他集數的相同錯誤</em>
+                      </span>
+                    </label>
                     <div className="nrk-line__form-actions">
                       <button
                         type="button"

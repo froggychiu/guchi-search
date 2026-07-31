@@ -10,6 +10,7 @@ from app.core.security import check_secret, require_secret
 
 from app.api.search import router as search_router
 from app.api.corrections import router as corrections_router
+from app.api.vocab import router as vocab_router
 from app.core.config import settings
 from app.core.database import Base, engine
 
@@ -54,6 +55,7 @@ app.add_middleware(
 
 app.include_router(search_router)
 app.include_router(corrections_router)
+app.include_router(vocab_router)
 
 
 @app.get("/health")
@@ -129,6 +131,7 @@ def _run_maintenance(action: str, extra_args: list[str] | None = None):
 async def trigger_maintenance(
     action: str,
     background_tasks: BackgroundTasks,
+    dry_run: bool = False,
     x_ingest_secret: str = Header(None),
 ):
     """Run maintenance tasks: dedup, reclassify, reindex. Protected by secret token."""
@@ -136,11 +139,16 @@ async def trigger_maintenance(
         raise HTTPException(status_code=403, detail="Invalid secret")
     # "setup" re-applies Meilisearch index settings only — no documents are
     # touched, so it is the cheap way to roll out a settings change.
-    if action not in ("setup", "dedup", "reclassify", "reindex", "retry-errors", "convert-s2t", "replace-text", "scan-hallucinations"):
+    if action not in ("setup", "dedup", "reclassify", "reindex", "retry-errors", "normalize-tw", "apply-vocab", "replace-text", "scan-hallucinations"):
         raise HTTPException(status_code=400, detail="Invalid action")
 
-    background_tasks.add_task(_run_maintenance, action)
-    return {"status": f"{action} started"}
+    # normalize-tw and apply-vocab rewrite existing transcripts, so both
+    # support a preview pass before committing to it. Results
+    # land in the deployment log rather than the response — this is a
+    # background task, it cannot report back.
+    extra = ["--dry-run"] if dry_run and action in ("normalize-tw", "apply-vocab") else None
+    background_tasks.add_task(_run_maintenance, action, extra)
+    return {"status": f"{action} started{' (dry run)' if extra else ''}"}
 
 
 class ReplaceTextRequest(BaseModel):

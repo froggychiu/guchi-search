@@ -22,6 +22,7 @@ from app.models.episode import Episode, Segment
 from app.services.rss_parser import fetch_episodes, download_audio, classify_show
 from app.services.transcriber import transcribe_audio, detect_hallucinations
 from app.services.indexer import index_episode_segments
+from app.services.vocab import apply_rules, load_active_rules
 from app.models.episode import Correction
 
 
@@ -86,6 +87,19 @@ async def transcribe_episode(session: AsyncSession, episode: Episode):
         await session.commit()
         return
 
+    # Apply the reviewed glossary before anything else looks at the text, so
+    # hallucination detection and the stored transcript agree.
+    rules = await load_active_rules(session)
+    if rules:
+        fixed = 0
+        for seg_data in segments_data:
+            corrected = apply_rules(seg_data["text"], rules)
+            if corrected != seg_data["text"]:
+                seg_data["text"] = corrected
+                fixed += 1
+        if fixed:
+            print(f"  [vocab] {fixed} segments corrected by {len(rules)} glossary rules.")
+
     # Detect hallucinations before saving
     hallucination_indices = detect_hallucinations(segments_data)
 
@@ -136,7 +150,9 @@ async def main():
     parser.add_argument("--reclassify", action="store_true", help="Re-classify all episodes into correct shows")
     parser.add_argument("--dedup", action="store_true", help="Remove duplicate episodes (keep first by ID)")
     parser.add_argument("--retry-errors", action="store_true", help="Reset error/processing episodes to pending and re-transcribe")
-    parser.add_argument("--convert-s2t", action="store_true", help="Convert all existing segment text from Simplified to Traditional Chinese")
+    parser.add_argument("--apply-vocab", action="store_true", help="Apply all active glossary rules to existing segments")
+    parser.add_argument("--normalize-tw", action="store_true", help="Repair non-Taiwan Traditional variants (爲->為, 喫->吃, 纔->才 ...) in existing segments")
+    parser.add_argument("--dry-run", action="store_true", help="With --normalize-tw: report what would change without writing")
     parser.add_argument("--replace-text", nargs=2, metavar=("OLD", "NEW"), help="Replace text in all segments")
     parser.add_argument("--scan-hallucinations", action="store_true", help="Scan existing transcripts for hallucinations and create correction entries")
     parser.add_argument("--episode-id", type=int, help="Transcribe a specific episode")
@@ -220,20 +236,96 @@ async def main():
             print(f"[OK] Reset {len(episodes)} episodes to pending.")
         return
 
-    if args.convert_s2t:
-        from opencc import OpenCC
-        s2t = OpenCC("s2t")
+    if args.normalize_tw:
+        # Repairs transcripts produced before the OpenCC config was fixed —
+        # see app/services/text_normalize.py for why s2t was the wrong choice.
+        # Reports a per-substitution breakdown either way; --dry-run stops
+        # before writing, so a ~2.6M row rewrite can be inspected first.
+        import collections
+        import difflib
+
+        from app.services.text_normalize import normalize_variants
+
+        subs: collections.Counter = collections.Counter()
         async with session_factory() as session:
             result = await session.execute(select(Segment))
             segments = result.scalars().all()
-            converted = 0
+            changed = 0
             for seg in segments:
-                new_text = s2t.convert(seg.text)
-                if new_text != seg.text:
+                new_text = normalize_variants(seg.text)
+                if new_text == seg.text:
+                    continue
+                changed += 1
+                matcher = difflib.SequenceMatcher(None, seg.text, new_text, autojunk=False)
+                for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+                    if tag != "equal":
+                        subs[(seg.text[i1:i2], new_text[j1:j2])] += 1
+                if not args.dry_run:
                     seg.text = new_text
-                    converted += 1
+
+            print(f"[{'DRY-RUN' if args.dry_run else 'OK'}] "
+                  f"{changed} / {len(segments)} segments affected")
+            for (old, new), n in subs.most_common(40):
+                print(f"    {n:>7}x  {old} -> {new}")
+
+            if args.dry_run:
+                print("[DRY-RUN] nothing written. Re-run without --dry-run to apply.")
+                return
             await session.commit()
-            print(f"[OK] Converted {converted} / {len(segments)} segments to Traditional Chinese.")
+            print(f"[OK] Rewrote {changed} segments. Re-index to update search.")
+        return
+
+    if args.apply_vocab:
+        # Backfills the glossary over existing transcripts. Separate from
+        # approving a rule on purpose: approval decides what future episodes
+        # get, this decides whether to rewrite history.
+        from app.models.episode import VocabRule
+
+        async with session_factory() as session:
+            rules = await load_active_rules(session)
+            if not rules:
+                print("[OK] No active glossary rules.")
+                return
+            print(f"[...] {len(rules)} active rules")
+
+            result = await session.execute(select(Segment))
+            segments = result.scalars().all()
+            per_rule = {wrong: 0 for wrong, _ in rules}
+            changed = 0
+            for seg in segments:
+                new_text = seg.text
+                for wrong, right in rules:
+                    if wrong in new_text:
+                        per_rule[wrong] += new_text.count(wrong)
+                        new_text = new_text.replace(wrong, right)
+                if new_text != seg.text:
+                    changed += 1
+                    if not args.dry_run:
+                        seg.text = new_text
+
+            print(f"[{'DRY-RUN' if args.dry_run else 'OK'}] "
+                  f"{changed} / {len(segments)} segments affected")
+            for wrong, right in rules:
+                print(f"    {per_rule[wrong]:>7}x  {wrong} -> {right}")
+
+            if args.dry_run:
+                print("[DRY-RUN] nothing written.")
+                return
+
+            # Record what each rule actually did, so a rule that matched far
+            # more than its author expected is visible in the admin list.
+            for wrong, right in rules:
+                row = await session.execute(
+                    select(VocabRule).where(
+                        VocabRule.wrong_text == wrong,
+                        VocabRule.right_text == right,
+                    )
+                )
+                rule = row.scalar_one_or_none()
+                if rule:
+                    rule.applied_count = per_rule[wrong]
+            await session.commit()
+            print(f"[OK] Rewrote {changed} segments. Re-index to update search.")
         return
 
     if args.scan_hallucinations:

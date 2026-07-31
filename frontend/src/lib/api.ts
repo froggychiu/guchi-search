@@ -203,15 +203,74 @@ export interface CorrectionItem {
   created_at: string;
 }
 
+export interface CorrectionResult {
+  status: string;
+  id: number;
+  /**
+   * Non-null when add_to_vocab produced a glossary proposal. The edit may not
+   * have been glossary-shaped (several separate changes, or a whole-sentence
+   * rewrite), in which case the correction is still recorded and this is null.
+   */
+  vocab_rule: { wrong: string; right: string } | null;
+}
+
 export async function submitCorrection(
   segment_id: number,
   suggested_text: string,
-  submitter_name = "匿名"
-): Promise<{ status: string; id: number }> {
+  submitter_name = "匿名",
+  add_to_vocab = false
+): Promise<CorrectionResult> {
   const res = await fetchWithRetry(`${API_BASE}/api/corrections`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ segment_id, suggested_text, submitter_name }),
+    body: JSON.stringify({
+      segment_id,
+      suggested_text,
+      submitter_name,
+      add_to_vocab,
+    }),
+  });
+  return parseJSON(res);
+}
+
+export interface VocabRule {
+  id: number;
+  wrong_text: string;
+  right_text: string;
+  status: string;
+  note: string | null;
+  submitter_name: string;
+  applied_count: number;
+  created_at: string;
+  /** Segments currently containing the misspelling — the review signal. */
+  wrong_hits?: number;
+  /** Segments already containing the correct form, for comparison. */
+  right_hits?: number;
+}
+
+export async function getVocabRules(
+  status: string,
+  secret: string
+): Promise<{ status: string; total: number; rules: VocabRule[] }> {
+  const res = await fetchWithRetry(
+    `${API_BASE}/api/vocab?status=${encodeURIComponent(status)}`,
+    { headers: { "X-Ingest-Secret": secret } }
+  );
+  return parseJSON(res);
+}
+
+export async function reviewVocabRule(
+  id: number,
+  status: "active" | "rejected",
+  secret: string
+): Promise<{ status: string; id: number }> {
+  const res = await fetchWithRetry(`${API_BASE}/api/vocab/${id}/review`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Ingest-Secret": secret,
+    },
+    body: JSON.stringify({ status }),
   });
   return parseJSON(res);
 }
