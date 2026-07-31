@@ -1,52 +1,68 @@
 import asyncio
 import html
 from datetime import datetime, timedelta
-from functools import partial
 
 import opencc
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func
+from sqlalchemy import and_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import async_session, get_db
-from app.core.search import get_search_index
 from app.models.episode import Episode, SearchLog, Segment
 
 router = APIRouter(prefix="/api", tags=["search"])
 
 
 # ---------------------------------------------------------------------------
-# Why /api/search issues three queries instead of one (SEARCH-01).
+# Why /api/search matches against Postgres rather than Meilisearch.
 #
-# `episode_title` is a searchable attribute, and every episode title contains
-# 呱吉. So a plain search for 呱吉 matches all ~2.6M segment docs. The old
-# implementation pulled one flat window of hits and derived every number from
-# it, which meant the window size WAS the reported total: common words all
-# reported exactly 1000 matches, and the episode count was whatever happened
-# to fit — 呱吉 reported fewer episodes (188) than 采翎 (367) purely because
-# its hits clustered more densely.
+# Two independent defects made the Meilisearch path unusable for this corpus,
+# and both are structural rather than tuning problems:
 #
-# The fix splits the two kinds of match apart and counts each one exactly:
+#   1. `episode_title` was a searchable attribute and every episode title
+#      contains 呱吉, so searching for it matched all ~2.6M segment docs. The
+#      implementation pulled one flat window of hits and derived every number
+#      from it, so the window size WAS the reported total: 呱吉, 采翎, 電腦 and
+#      選舉 all reported exactly 1000 matches against true counts of 8489,
+#      2597, 899 and 1137, and episodes past the window were unreachable.
 #
-#   1. Content matches — Meilisearch restricted to the `text` field, with a
-#      facet distribution over episode_id. The facet covers EVERY match, not
-#      just the returned window, so counts are exact and cheap.
-#   2. Title matches — a Postgres ILIKE over the ~820 episode rows. The old
-#      code classified these with a literal `q in title` test, so ILIKE
-#      reproduces it exactly, and avoids a facet pass over 2.6M docs.
-#   3. Snippets — one filtered query for just the current page's episodes.
+#   2. Meilisearch tokenizes CJK per character, so 電腦 matched any segment
+#      containing 電 or 腦 — the top-ranked result was an episode about
+#      電踏大叔 with no 電腦 in it at all. Quoting the query as a phrase fixed
+#      that, but then broke 采翎: jieba segments a name differently in
+#      isolation than in running text, so the phrase never lined up and the
+#      co-host's name returned zero results despite 2597 real matches.
+#
+# Defect 2 has no general fix — a custom dictionary only covers names someone
+# thought to add, and every new guest is a fresh chance to silently return
+# nothing. Postgres has none of these failure modes: LIKE is exactly the
+# literal-substring semantics users expect, and it is also *faster* here
+# (measured on production: 0.37-0.40s to scan 2.6M rows, including a query
+# matching 708k of them, against 1.17-2.14s for the Meilisearch path).
+#
+# So content matching, counting, ordering and snippets all come from Postgres:
+#
+#   1. Counts   — GROUP BY over segments, exact, one sequential scan.
+#   2. Titles   — ILIKE over the ~820 episode rows.
+#   3. Snippets — window function capped per episode, via the episode_id index.
+#
+# Meilisearch is no longer in the read path. Ingest still indexes into it, so
+# nothing breaks if this is reverted.
+#
+# Scaling note: the count query is a sequential scan on every search. That is
+# comfortable at current traffic; a pg_trgm GIN index on segments.text is the
+# fix if concurrency grows.
 # ---------------------------------------------------------------------------
-
-# Relevance-ordering window. Only episode_id is retrieved, so this stays cheap;
-# it decides episode ORDER, never the totals. Capped by the index's
-# pagination.maxTotalHits (5000, set in core/search.py).
-MAX_ORDER_HITS = 5000
 
 # Snippets rendered per episode. The card expands to show these, so an episode
 # with 8,000 matches must not emit 8,000 rows — the exact count is still
 # reported in hit_count.
 HITS_PER_EPISODE = 20
+
+# Long transcript lines are cropped around the first match so a card does not
+# render a wall of text. Segments are usually short, so this rarely triggers.
+SNIPPET_MAX_CHARS = 140
 
 # Minimum query length to count toward popular-keyword analytics.
 # Single-character queries add noise and dominate rankings.
@@ -58,93 +74,89 @@ MIN_LOGGABLE_QUERY_LEN = 2
 # so queries can be converted unconditionally (BUG-02).
 _s2t = opencc.OpenCC("s2t")
 
-# ---------------------------------------------------------------------------
-# Stored-XSS defense for highlighted snippets (SEC-01).
-#
-# Meilisearch returns matched text with <mark>...</mark> wrapped around the
-# query — we configure the pre/post tags below. We must HTML-escape any user-
-# generated content (segment text, episode_title via RSS, future neighbor
-# context) before sending to the frontend, but PRESERVE our own <mark> tags
-# so React can render them. Use null-byte placeholders that html.escape()
-# never touches as a swap mechanism.
-# ---------------------------------------------------------------------------
+# Wrapped around matches in `highlighted_text`. The frontend splits on these
+# exact strings and renders everything else as literal React text (SEC-01), so
+# changing them requires changing HighlightedText in SearchResults.tsx too.
 HIGHLIGHT_PRE_TAG = "<mark>"
 HIGHLIGHT_POST_TAG = "</mark>"
-_PRE_PLACEHOLDER = "\x00MARK_OPEN\x00"
-_POST_PLACEHOLDER = "\x00MARK_CLOSE\x00"
 
 
-def _safe_highlight(formatted_text: str) -> str:
-    """HTML-escape text from Meilisearch while keeping our own <mark> tags.
-
-    A future maintainer who changes the pre/post tags below MUST also update
-    HIGHLIGHT_PRE_TAG / HIGHLIGHT_POST_TAG.
-    """
-    s = (formatted_text or "")
-    s = s.replace(HIGHLIGHT_PRE_TAG, _PRE_PLACEHOLDER).replace(
-        HIGHLIGHT_POST_TAG, _POST_PLACEHOLDER
-    )
-    s = html.escape(s, quote=False)
-    s = s.replace(_PRE_PLACEHOLDER, HIGHLIGHT_PRE_TAG).replace(
-        _POST_PLACEHOLDER, HIGHLIGHT_POST_TAG
-    )
-    return s
-
-
-# Whitelist for the `show` query parameter — fixes SEC-04 (Meilisearch filter
-# expression injection via unescaped f-string). Anything outside this set is
-# rejected with 400 instead of being concatenated into the filter.
+# Whitelist for the `show` query parameter. Kept as a whitelist rather than an
+# escape because it is also the safest shape (SEC-04).
 ALLOWED_SHOWS = set(settings.show_keywords.keys()) | {settings.default_show}
 
 
-def _phrase_query(q: str) -> str:
-    """Rewrite a query so Meilisearch matches it literally.
+def _tokens(q: str) -> list[str]:
+    """Split a query into the terms that must all be present.
 
-    Meilisearch tokenizes CJK per character, so a bare 電腦 matches any
-    segment containing 電 OR 腦. Production returned 電踏大叔, 電話, 電臺 and
-    電影 as matches for 電腦 — 15,230 hits across 818 of 820 episodes, against
-    899 segments that actually contain the word.
-
-    Quoting each whitespace-separated token turns it into a phrase, which
-    restores literal matching. matchingStrategy="all" (set at the call site)
-    then requires every token to be present, without requiring the separate
-    tokens to sit next to each other — so 呱吉 電腦 finds segments containing
-    both words anywhere, while 電腦 alone no longer matches 電視.
-
-    Returns "" when nothing usable is left, which the caller rejects.
+    Multi-term queries require every term somewhere in the same segment, but
+    not adjacent to each other — 呱吉 電腦 finds segments mentioning both.
     """
-    tokens = [t.replace('"', "").strip() for t in q.split()]
-    return " ".join(f'"{t}"' for t in tokens if t)
+    return [t for t in (part.strip() for part in q.split()) if t]
 
 
 def _ilike_literal(s: str) -> str:
     """Escape LIKE wildcards so a query is matched as a literal substring.
 
-    Without this, searching for `%` would make the title ILIKE match every
-    episode, and `_` would match any single character.
+    Without this, searching for `%` would match every row, and `_` would match
+    any single character.
     """
     return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-async def _meili_search(index, q: str, params: dict) -> dict:
-    """Run a Meilisearch query off the event loop, retrying cold-cache blips.
+def _ilike_all(column, terms: list[str]):
+    """AND together a literal case-insensitive substring test per term."""
+    return and_(*[
+        column.ilike(f"%{_ilike_literal(t)}%", escape="\\") for t in terms
+    ])
 
-    Raises 503 after three failed attempts rather than returning partial data —
-    a silently empty result set would read as "no matches found".
+
+def _highlight(text: str, terms: list[str]) -> str:
+    """HTML-escape `text` and wrap literal occurrences of `terms` in <mark>.
+
+    Replaces Meilisearch's _formatted output. Everything that is not a match
+    is escaped, and the tags are the only markup emitted, so the result is
+    safe for the frontend's tag-splitting renderer (SEC-01).
     """
-    last_err: Exception | None = None
-    for attempt in range(3):
-        try:
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, partial(index.search, q, params))
-        except Exception as e:
-            last_err = e
-            if attempt < 2:
-                await asyncio.sleep(0.5 * (attempt + 1))  # 0.5s, 1s
-    raise HTTPException(
-        status_code=503,
-        detail=f"Search service unavailable: {str(last_err)}",
-    )
+    text = text or ""
+    lowered = text.lower()
+    needles = [t.lower() for t in terms if t]
+    if not needles:
+        return html.escape(text, quote=False)
+
+    out: list[str] = []
+    i = 0
+    while i < len(text):
+        # Earliest match across all terms; longest wins on a tie so that
+        # overlapping terms don't produce a truncated highlight.
+        best_at, best_len = -1, 0
+        for n in needles:
+            at = lowered.find(n, i)
+            if at != -1 and (best_at == -1 or at < best_at
+                             or (at == best_at and len(n) > best_len)):
+                best_at, best_len = at, len(n)
+        if best_at == -1:
+            break
+        out.append(html.escape(text[i:best_at], quote=False))
+        out.append(HIGHLIGHT_PRE_TAG)
+        out.append(html.escape(text[best_at:best_at + best_len], quote=False))
+        out.append(HIGHLIGHT_POST_TAG)
+        i = best_at + best_len
+    out.append(html.escape(text[i:], quote=False))
+    return "".join(out)
+
+
+def _crop(text: str, terms: list[str], limit: int = SNIPPET_MAX_CHARS) -> str:
+    """Trim a long transcript line to a window around its first match."""
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    lowered = text.lower()
+    positions = [p for p in (lowered.find(t.lower()) for t in terms) if p != -1]
+    first = min(positions) if positions else 0
+    start = max(0, first - limit // 3)
+    end = min(len(text), start + limit)
+    return ("…" if start else "") + text[start:end] + ("…" if end < len(text) else "")
 
 
 async def _log_search_query(query: str) -> None:
@@ -171,56 +183,40 @@ async def search(
 ):
     """Full-text search across all transcripts, grouped by episode.
 
-    Content matches and title-only matches are counted separately and exactly;
-    see the SEARCH-01 note at the top of this module for why that needs more
-    than one query.
+    Matching is literal substring, case-insensitive, over segment text and
+    episode titles. See the note at the top of this module for why this runs
+    against Postgres rather than Meilisearch.
     """
     if show is not None and show not in ALLOWED_SHOWS:
         raise HTTPException(status_code=400, detail="Invalid show name")
 
     # BUG-02: normalize the query to Traditional to match the corpus.
     q = _s2t.convert(q.strip())
-    meili_q = _phrase_query(q)
-    if not q or not meili_q:
+    terms = _tokens(q)
+    if not terms:
         raise HTTPException(status_code=400, detail="Empty query")
 
-    index = get_search_index()
-    # Safe: `show` was validated against ALLOWED_SHOWS above (SEC-04).
-    show_filter = f'show = "{show}"' if show else None
+    # ------------------------------------------------------------------
+    # Query 1 — exact per-episode content counts.
+    # ------------------------------------------------------------------
+    count_stmt = (
+        select(Segment.episode_id, func.count(Segment.id))
+        .where(_ilike_all(Segment.text, terms))
+        .group_by(Segment.episode_id)
+    )
+    if show:
+        count_stmt = count_stmt.where(
+            Segment.episode_id.in_(select(Episode.id).where(Episode.show == show))
+        )
+    content_counts: dict[int, int] = {
+        ep_id: n for ep_id, n in (await db.execute(count_stmt)).all()
+    }
 
     # ------------------------------------------------------------------
-    # Query 1 — content matches. Retrieves episode_id only: this pass exists
-    # to establish relevance ORDER. The exact per-episode counts come from the
-    # facet distribution, which covers every match rather than just this
-    # window (requires faceting.maxValuesPerFacet >= episode count, set in
-    # core/search.py).
-    # ------------------------------------------------------------------
-    order_result = await _meili_search(index, meili_q, {
-        "limit": MAX_ORDER_HITS,
-        "offset": 0,
-        "filter": show_filter,
-        "matchingStrategy": "all",
-        "attributesToSearchOn": ["text"],
-        "attributesToRetrieve": ["episode_id"],
-        "facets": ["episode_id"],
-    })
-
-    facet = (order_result.get("facetDistribution") or {}).get("episode_id") or {}
-    content_counts: dict[int, int] = {int(k): int(v) for k, v in facet.items()}
-
-    content_order: list[int] = []
-    ranked: set[int] = set()
-    for hit in order_result["hits"]:
-        ep_id = hit["episode_id"]
-        if ep_id not in ranked:
-            ranked.add(ep_id)
-            content_order.append(ep_id)
-
-    # ------------------------------------------------------------------
-    # Query 2 — title matches, straight from Postgres over ~820 episode rows.
+    # Query 2 — title matches, over the ~820 episode rows.
     # ------------------------------------------------------------------
     title_stmt = select(Episode.id, Episode.published_at).where(
-        Episode.title.ilike(f"%{_ilike_literal(q)}%", escape="\\")
+        _ilike_all(Episode.title, terms)
     )
     if show:
         title_stmt = title_stmt.where(Episode.show == show)
@@ -232,15 +228,27 @@ async def search(
     title_only_ids = {row[0] for row in title_only}
 
     # ------------------------------------------------------------------
-    # Final episode order: relevance-ranked content episodes, then content
-    # episodes whose best hit fell outside the ordering window (most matches
-    # first), then title-only episodes newest first.
+    # Ranking: episodes that discuss the term most come first. Meilisearch's
+    # relevance score is gone with it, and for transcript search this is both
+    # more useful and explainable — an episode mentioning a topic 40 times is
+    # more about it than one mentioning it once. Newest first breaks ties.
+    # Title-only episodes trail the content matches.
     # ------------------------------------------------------------------
-    unranked = sorted(
-        (ep_id for ep_id in content_counts if ep_id not in ranked),
-        key=lambda ep_id: (-content_counts[ep_id], ep_id),
+    published: dict[int, datetime] = {}
+    if content_counts:
+        rows = await db.execute(
+            select(Episode.id, Episode.published_at)
+            .where(Episode.id.in_(list(content_counts)))
+        )
+        published = {ep_id: (pub or datetime.min) for ep_id, pub in rows}
+
+    content_order = sorted(
+        content_counts,
+        key=lambda ep_id: (-content_counts[ep_id],
+                           -(published.get(ep_id, datetime.min).timestamp()),
+                           ep_id),
     )
-    ordered_episode_ids = content_order + unranked + [row[0] for row in title_only]
+    ordered_episode_ids = content_order + [row[0] for row in title_only]
 
     total_episodes = len(ordered_episode_ids)
     # A title-only episode contributes exactly one row, matching how it renders.
@@ -252,32 +260,41 @@ async def search(
     page_content_ids = [e for e in page_episode_ids if e not in title_only_ids]
 
     # ------------------------------------------------------------------
-    # Query 3 — snippets, for this page's content episodes only.
+    # Query 3 — snippets for this page's content episodes. The window function
+    # caps rows per episode inside the database, so an episode with thousands
+    # of matches doesn't stream thousands of rows back to trim in Python.
     # ------------------------------------------------------------------
     grouped: dict[int, list[dict]] = {}
     if page_content_ids:
-        # Episode ids are integers from our own database, not user input.
-        id_list = ", ".join(str(int(e)) for e in page_content_ids)
-        snippet_filter = f"episode_id IN [{id_list}]"
-        if show_filter:
-            snippet_filter = f"{show_filter} AND {snippet_filter}"
-
-        snippet_result = await _meili_search(index, meili_q, {
-            "limit": len(page_content_ids) * HITS_PER_EPISODE,
-            "offset": 0,
-            "filter": snippet_filter,
-            "matchingStrategy": "all",
-            "attributesToSearchOn": ["text"],
-            "attributesToHighlight": ["text"],
-            "highlightPreTag": HIGHLIGHT_PRE_TAG,
-            "highlightPostTag": HIGHLIGHT_POST_TAG,
-            "attributesToCrop": ["text"],
-            "cropLength": 80,
-        })
-        for hit in snippet_result["hits"]:
-            bucket = grouped.setdefault(hit["episode_id"], [])
-            if len(bucket) < HITS_PER_EPISODE:
-                bucket.append(hit)
+        ranked_segments = (
+            select(
+                Segment.id,
+                Segment.episode_id,
+                Segment.start_time,
+                Segment.end_time,
+                Segment.text,
+                func.row_number().over(
+                    partition_by=Segment.episode_id,
+                    order_by=Segment.start_time.asc(),
+                ).label("rn"),
+            )
+            .where(
+                Segment.episode_id.in_(page_content_ids),
+                _ilike_all(Segment.text, terms),
+            )
+            .subquery()
+        )
+        rows = await db.execute(
+            select(ranked_segments).where(ranked_segments.c.rn <= HITS_PER_EPISODE)
+        )
+        for row in rows:
+            grouped.setdefault(row.episode_id, []).append({
+                "id": row.id,
+                "episode_id": row.episode_id,
+                "start_time": row.start_time,
+                "end_time": row.end_time,
+                "text": row.text,
+            })
 
     # Enrich with Episode rows
     episodes_map = {}
@@ -334,9 +351,9 @@ async def search(
         return (s[:limit] + "…") if len(s) > limit else s
 
     def _format_hit(hit: dict) -> dict:
-        # SEC-01: escape user-generated content before returning. _safe_highlight
-        # preserves our own <mark> tags; neighbor context is escaped as plain text.
-        highlighted = _safe_highlight(hit.get("_formatted", {}).get("text", hit["text"]))
+        # SEC-01: _highlight escapes everything except the <mark> tags it emits
+        # itself; neighbor context is escaped as plain text.
+        highlighted = _highlight(_crop(hit["text"], terms), terms)
         if hit["id"] in neighbors_map:
             prev_t, next_t = neighbors_map[hit["id"]]
             parts: list[str] = []
