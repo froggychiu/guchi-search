@@ -97,6 +97,26 @@ def _safe_highlight(formatted_text: str) -> str:
 ALLOWED_SHOWS = set(settings.show_keywords.keys()) | {settings.default_show}
 
 
+def _phrase_query(q: str) -> str:
+    """Rewrite a query so Meilisearch matches it literally.
+
+    Meilisearch tokenizes CJK per character, so a bare 電腦 matches any
+    segment containing 電 OR 腦. Production returned 電踏大叔, 電話, 電臺 and
+    電影 as matches for 電腦 — 15,230 hits across 818 of 820 episodes, against
+    899 segments that actually contain the word.
+
+    Quoting each whitespace-separated token turns it into a phrase, which
+    restores literal matching. matchingStrategy="all" (set at the call site)
+    then requires every token to be present, without requiring the separate
+    tokens to sit next to each other — so 呱吉 電腦 finds segments containing
+    both words anywhere, while 電腦 alone no longer matches 電視.
+
+    Returns "" when nothing usable is left, which the caller rejects.
+    """
+    tokens = [t.replace('"', "").strip() for t in q.split()]
+    return " ".join(f'"{t}"' for t in tokens if t)
+
+
 def _ilike_literal(s: str) -> str:
     """Escape LIKE wildcards so a query is matched as a literal substring.
 
@@ -160,7 +180,8 @@ async def search(
 
     # BUG-02: normalize the query to Traditional to match the corpus.
     q = _s2t.convert(q.strip())
-    if not q:
+    meili_q = _phrase_query(q)
+    if not q or not meili_q:
         raise HTTPException(status_code=400, detail="Empty query")
 
     index = get_search_index()
@@ -174,10 +195,11 @@ async def search(
     # window (requires faceting.maxValuesPerFacet >= episode count, set in
     # core/search.py).
     # ------------------------------------------------------------------
-    order_result = await _meili_search(index, q, {
+    order_result = await _meili_search(index, meili_q, {
         "limit": MAX_ORDER_HITS,
         "offset": 0,
         "filter": show_filter,
+        "matchingStrategy": "all",
         "attributesToSearchOn": ["text"],
         "attributesToRetrieve": ["episode_id"],
         "facets": ["episode_id"],
@@ -240,10 +262,11 @@ async def search(
         if show_filter:
             snippet_filter = f"{show_filter} AND {snippet_filter}"
 
-        snippet_result = await _meili_search(index, q, {
+        snippet_result = await _meili_search(index, meili_q, {
             "limit": len(page_content_ids) * HITS_PER_EPISODE,
             "offset": 0,
             "filter": snippet_filter,
+            "matchingStrategy": "all",
             "attributesToSearchOn": ["text"],
             "attributesToHighlight": ["text"],
             "highlightPreTag": HIGHLIGHT_PRE_TAG,
