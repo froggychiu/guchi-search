@@ -1,6 +1,27 @@
--r requirements.txt
+# Dependencies for running backend/tests/ locally.
+#
+# Deliberately NOT `-r requirements.txt`. Production builds on python:3.11
+# (see Dockerfile), where the pinned sqlalchemy==2.0.36 is fine, but that
+# version fails to import on Python 3.13+ — a dev machine on a newer Python
+# cannot run the tests with the production pin. Everything here is floored
+# rather than pinned so the suite runs on whatever interpreter is available;
+# production pinning stays in requirements.txt.
+#
+#   python3 -m venv .venv
+#   .venv/bin/pip install -r requirements-dev.txt
+#   .venv/bin/python tests/test_search.py
+#   .venv/bin/python tests/test_highlight.py
 
-# Test-only. The suite swaps Postgres for a throwaway SQLite file so it needs
-# no running services; httpx (already a runtime dep) drives the ASGI app.
-aiosqlite==0.20.0
-greenlet==3.1.1
+fastapi>=0.115.6
+sqlalchemy>=2.0.36
+pydantic>=2.10.3
+pydantic-settings>=2.7.0
+httpx>=0.28.1
+opencc-python-reimplemented>=0.1.7
+# Imported at startup by app.core.search even though search no longer reads
+# from it — ingest still indexes into Meilisearch.
+meilisearch>=0.33.0
+# The suite swaps Postgres for a throwaway SQLite file, so no service is
+# needed; greenlet is what SQLAlchemy's async layer runs on.
+aiosqlite>=0.20.0
+greenlet>=3.1.1

@@ -4,10 +4,17 @@
 Meilisearch 或 Postgres —— 搜尋只讀資料庫，測試用暫時的 SQLite 檔。
 
 ```bash
-pip install -r requirements-dev.txt
-python tests/test_search.py
-python tests/test_highlight.py
+cd backend
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python tests/test_search.py
+.venv/bin/python tests/test_highlight.py
 ```
+
+`requirements-dev.txt` 不是 `-r requirements.txt`。production 用 python:3.11
+建置（見 Dockerfile），那裡釘的 `sqlalchemy==2.0.36` 沒問題，但它在
+Python 3.13+ 上會 import 失敗 —— 開發機用較新的 Python 就跑不動測試。
+所以 dev 那份用下限而非釘版，production 的釘版留在 `requirements.txt`。
 
 ## 為什麼是這些測試
 
