@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import opencc
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, select, func
+from sqlalchemy import and_, or_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -69,10 +69,28 @@ SNIPPET_MAX_CHARS = 140
 MIN_LOGGABLE_QUERY_LEN = 2
 
 # The corpus was normalized to Traditional Chinese with OpenCC s2t during
-# ingest, so a Simplified query used to miss nearly everything (电脑 matched
-# 2 segments where 電腦 matched 897). s2t is idempotent on Traditional input,
-# so queries can be converted unconditionally (BUG-02).
+# ingest, so a Simplified query misses nearly everything: 电脑 matched 2
+# segments where 電腦 matched 899 (BUG-02).
+#
+# Converting the query is NOT safe on its own. Simplification merged several
+# Traditional characters into one, so s2t has to guess when converting back
+# and it can rewrite a query that was already correct:
+#
+#     采翎 -> 採翎     (the co-host's name; the corpus stores 采翎)
+#     余生 -> 餘生
+#
+# Converting unconditionally made 采翎 return zero results against 2597 real
+# matches. So each term is matched against BOTH spellings — the user's own
+# and the converted one — which finds 電腦 for a 电脑 query without breaking
+# a query that never needed converting.
 _s2t = opencc.OpenCC("s2t")
+
+
+def _variants(term: str) -> list[str]:
+    """The spellings a term should be matched against: as typed, plus its
+    Traditional conversion when that differs."""
+    converted = _s2t.convert(term)
+    return [term] if converted == term else [term, converted]
 
 # Wrapped around matches in `highlighted_text`. The frontend splits on these
 # exact strings and renders everything else as literal React text (SEC-01), so
@@ -105,9 +123,14 @@ def _ilike_literal(s: str) -> str:
 
 
 def _ilike_all(column, terms: list[str]):
-    """AND together a literal case-insensitive substring test per term."""
+    """Require every term, each matched as a literal case-insensitive
+    substring in any of its spellings (see _variants)."""
     return and_(*[
-        column.ilike(f"%{_ilike_literal(t)}%", escape="\\") for t in terms
+        or_(*[
+            column.ilike(f"%{_ilike_literal(v)}%", escape="\\")
+            for v in _variants(term)
+        ])
+        for term in terms
     ])
 
 
@@ -190,11 +213,13 @@ async def search(
     if show is not None and show not in ALLOWED_SHOWS:
         raise HTTPException(status_code=400, detail="Invalid show name")
 
-    # BUG-02: normalize the query to Traditional to match the corpus.
-    q = _s2t.convert(q.strip())
+    q = q.strip()
     terms = _tokens(q)
     if not terms:
         raise HTTPException(status_code=400, detail="Empty query")
+    # Every spelling that could have produced a match, so highlighting marks
+    # 電腦 in a result found by a 电脑 query (BUG-02).
+    highlight_terms = [v for term in terms for v in _variants(term)]
 
     # ------------------------------------------------------------------
     # Query 1 — exact per-episode content counts.
@@ -353,7 +378,9 @@ async def search(
     def _format_hit(hit: dict) -> dict:
         # SEC-01: _highlight escapes everything except the <mark> tags it emits
         # itself; neighbor context is escaped as plain text.
-        highlighted = _highlight(_crop(hit["text"], terms), terms)
+        highlighted = _highlight(
+            _crop(hit["text"], highlight_terms), highlight_terms
+        )
         if hit["id"] in neighbors_map:
             prev_t, next_t = neighbors_map[hit["id"]]
             parts: list[str] = []
