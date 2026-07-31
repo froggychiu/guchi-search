@@ -22,6 +22,8 @@ export default function Home() {
   const [searchEpisodes, setSearchEpisodes] = useState<EpisodeSearchResult[]>([]);
   const [totalSearchEpisodes, setTotalSearchEpisodes] = useState(0);
   const [totalSegmentMatches, setTotalSegmentMatches] = useState(0);
+  // Other-script spelling to offer when a search finds nothing.
+  const [suggestion, setSuggestion] = useState<string | null>(null);
   const [episodes, setEpisodes] = useState<EpisodeSummary[]>([]);
   const [stats, setStats] = useState({ total_episodes: 0, transcribed_episodes: 0, total_segments: 0 });
   const [page, setPage] = useState(1);
@@ -84,10 +86,12 @@ export default function Home() {
       setSearchEpisodes(result.episodes);
       setTotalSearchEpisodes(result.total_episodes);
       setTotalSegmentMatches(result.total_segment_matches);
+      setSuggestion(result.suggestion);
     } catch {
       setSearchEpisodes([]);
       setTotalSearchEpisodes(0);
       setTotalSegmentMatches(0);
+      setSuggestion(null);
     }
     setIsSearching(false);
   }
@@ -254,6 +258,8 @@ export default function Home() {
           totalEpisodes={totalSearchEpisodes}
           totalSegmentMatches={totalSegmentMatches}
           query={query}
+          suggestion={suggestion}
+          onSuggestionClick={handleSearch}
         />
       ) : (
         <EpisodeList episodes={episodes} />

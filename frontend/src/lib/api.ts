@@ -85,6 +85,12 @@ export interface SearchResult {
   page: number;
   per_page: number;
   episodes: EpisodeSearchResult[];
+  /**
+   * Set only when nothing was found and the query written in the other
+   * Chinese script would have matched. A suggestion, never applied
+   * automatically — see the BUG-02 note in the backend's search.py.
+   */
+  suggestion: string | null;
 }
 
 export interface EpisodeSummary {

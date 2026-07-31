@@ -30,3 +30,6 @@ Thumbs.db
 
 # Audio temp files
 /tmp/guchi_audio/
+
+# Test artifacts
+backend/tests/test.db

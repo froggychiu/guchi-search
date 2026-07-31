@@ -68,29 +68,42 @@ SNIPPET_MAX_CHARS = 140
 # Single-character queries add noise and dominate rankings.
 MIN_LOGGABLE_QUERY_LEN = 2
 
-# The corpus was normalized to Traditional Chinese with OpenCC s2t during
-# ingest, so a Simplified query misses nearly everything: 电脑 matched 2
-# segments where 電腦 matched 899 (BUG-02).
+# ---------------------------------------------------------------------------
+# Script conversion is a SUGGESTION, never part of matching (BUG-02).
 #
-# Converting the query is NOT safe on its own. Simplification merged several
-# Traditional characters into one, so s2t has to guess when converting back
-# and it can rewrite a query that was already correct:
+# Ingest already normalizes transcripts to Traditional, and the corpus is
+# clean: eleven Simplified-only characters (电 脑 个 们 国 说 学 这 时 会 麽)
+# return zero rows. Nobody searches in Simplified either — zero Simplified
+# queries among the top 30 over 90 days.
 #
-#     采翎 -> 採翎     (the co-host's name; the corpus stores 采翎)
-#     余生 -> 餘生
+# Converting queries anyway cost real users, because Simplification merged
+# distinct Traditional characters and converting back is a guess. Matching a
+# term against its converted spelling meant:
 #
-# Converting unconditionally made 采翎 return zero results against 2597 real
-# matches. So each term is matched against BOTH spellings — the user's own
-# and the converted one — which finds 電腦 for a 电脑 query without breaking
-# a query that never needed converting.
+#     里 also matched 裡  -> +12,277 unrelated segments
+#     干 also matched 乾  -> +3,127
+#     采 also matched 採  -> +1,248
+#
+# and converting unconditionally (the first attempt) made 采翎 return zero
+# against 2597 real matches, because s2t rewrites it to 採翎.
+#
+# So matching uses exactly what the user typed. When that finds nothing, the
+# other script is offered as a suggestion the user can click. Being a
+# suggestion rather than a silent rewrite makes it safe in both directions,
+# which also covers 採翎 -> 采翎.
+# ---------------------------------------------------------------------------
 _s2t = opencc.OpenCC("s2t")
+_t2s = opencc.OpenCC("t2s")
 
 
-def _variants(term: str) -> list[str]:
-    """The spellings a term should be matched against: as typed, plus its
-    Traditional conversion when that differs."""
-    converted = _s2t.convert(term)
-    return [term] if converted == term else [term, converted]
+def _script_alternatives(q: str) -> list[str]:
+    """Other-script spellings of `q`, for a did-you-mean on an empty result."""
+    seen, out = {q}, []
+    for converted in (_s2t.convert(q), _t2s.convert(q)):
+        if converted not in seen:
+            seen.add(converted)
+            out.append(converted)
+    return out
 
 # Wrapped around matches in `highlighted_text`. The frontend splits on these
 # exact strings and renders everything else as literal React text (SEC-01), so
@@ -123,14 +136,9 @@ def _ilike_literal(s: str) -> str:
 
 
 def _ilike_all(column, terms: list[str]):
-    """Require every term, each matched as a literal case-insensitive
-    substring in any of its spellings (see _variants)."""
+    """Require every term, matched as a literal case-insensitive substring."""
     return and_(*[
-        or_(*[
-            column.ilike(f"%{_ilike_literal(v)}%", escape="\\")
-            for v in _variants(term)
-        ])
-        for term in terms
+        column.ilike(f"%{_ilike_literal(t)}%", escape="\\") for t in terms
     ])
 
 
@@ -217,9 +225,6 @@ async def search(
     terms = _tokens(q)
     if not terms:
         raise HTTPException(status_code=400, detail="Empty query")
-    # Every spelling that could have produced a match, so highlighting marks
-    # 電腦 in a result found by a 电脑 query (BUG-02).
-    highlight_terms = [v for term in terms for v in _variants(term)]
 
     # ------------------------------------------------------------------
     # Query 1 — exact per-episode content counts.
@@ -378,9 +383,7 @@ async def search(
     def _format_hit(hit: dict) -> dict:
         # SEC-01: _highlight escapes everything except the <mark> tags it emits
         # itself; neighbor context is escaped as plain text.
-        highlighted = _highlight(
-            _crop(hit["text"], highlight_terms), highlight_terms
-        )
+        highlighted = _highlight(_crop(hit["text"], terms), terms)
         if hit["id"] in neighbors_map:
             prev_t, next_t = neighbors_map[hit["id"]]
             parts: list[str] = []
@@ -413,12 +416,27 @@ async def search(
             "show": ep.show if ep else (ep_hits_raw[0].get("show", "") if ep_hits_raw else ""),
             "published_at": ep.published_at.isoformat() if ep and ep.published_at else None,
             "is_title_only_match": is_title_only_match,
-            # Exact, from the facet distribution — not len(hits), which is
-            # capped at HITS_PER_EPISODE. hits_shown lets the UI say so.
+            # Exact count from the GROUP BY — not len(hits), which is capped
+            # at HITS_PER_EPISODE. hits_shown lets the UI say so.
             "hit_count": content_counts.get(ep_id, 0),
             "hits_shown": len(ep_hits),
             "hits": ep_hits,
         })
+
+    # Nothing found: offer the other script, if it would have found something.
+    # Only runs on an empty result, so the normal path pays nothing for it.
+    suggestion: str | None = None
+    if not ordered_episode_ids:
+        for alt in _script_alternatives(q):
+            alt_terms = _tokens(alt)
+            if not alt_terms:
+                continue
+            found = await db.execute(
+                select(Segment.id).where(_ilike_all(Segment.text, alt_terms)).limit(1)
+            )
+            if found.scalar_one_or_none() is not None:
+                suggestion = alt
+                break
 
     # Best-effort analytics logging (only on page 1 so refreshes / paginations
     # don't inflate counts for the same user action).
@@ -432,6 +450,7 @@ async def search(
         "page": page,
         "per_page": per_page,
         "episodes": episodes_payload,
+        "suggestion": suggestion,
     }
 
 

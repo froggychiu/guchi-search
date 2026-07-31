@@ -38,6 +38,8 @@ interface SearchResultsProps {
   totalEpisodes: number;
   totalSegmentMatches: number;
   query: string;
+  suggestion?: string | null;
+  onSuggestionClick?: (query: string) => void;
 }
 
 export default function SearchResults({
@@ -45,12 +47,28 @@ export default function SearchResults({
   totalEpisodes,
   totalSegmentMatches,
   query,
+  suggestion,
+  onSuggestionClick,
 }: SearchResultsProps) {
   if (episodes.length === 0) {
     return (
       <div className="nrk-empty">
         <div className="nrk-empty__big">找不到「{query}」的相關結果</div>
-        <p>試試其他關鍵字？</p>
+        {suggestion ? (
+          <p>
+            你是不是要找{" "}
+            <button
+              type="button"
+              className="nrk-suggest"
+              onClick={() => onSuggestionClick?.(suggestion)}
+            >
+              {suggestion}
+            </button>
+            ？
+          </p>
+        ) : (
+          <p>試試其他關鍵字？</p>
+        )}
       </div>
     );
   }

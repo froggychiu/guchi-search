@@ -1,0 +1,6 @@
+-r requirements.txt
+
+# Test-only. The suite swaps Postgres for a throwaway SQLite file so it needs
+# no running services; httpx (already a runtime dep) drives the ASGI app.
+aiosqlite==0.20.0
+greenlet==3.1.1
