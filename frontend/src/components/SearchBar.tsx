@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export type SearchScope = "all" | "新資料夾" | "直播" | "其他";
 
@@ -26,6 +26,14 @@ export default function SearchBar({
   autoFocus,
 }: SearchBarProps) {
   const [query, setQuery] = useState(initialQuery);
+
+  // Searches can be started from outside this box — a popular keyword, or the
+  // did-you-mean on an empty result. Without this the input keeps showing the
+  // previous term while the results below it are for a different one, and
+  // pressing Enter re-runs the stale term (BUG-01).
+  useEffect(() => {
+    setQuery(initialQuery);
+  }, [initialQuery]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
