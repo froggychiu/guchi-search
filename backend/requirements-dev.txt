@@ -21,6 +21,10 @@ opencc-python-reimplemented>=0.1.7
 # Imported at startup by app.core.search even though search no longer reads
 # from it — ingest still indexes into Meilisearch.
 meilisearch>=0.33.0
+# test_cli imports app.scripts.ingest to prove it still loads after an edit,
+# which pulls in the RSS and transcription paths.
+feedparser>=6.0.11
+openai>=1.58.1
 # The suite swaps Postgres for a throwaway SQLite file, so no service is
 # needed; greenlet is what SQLAlchemy's async layer runs on.
 aiosqlite>=0.20.0

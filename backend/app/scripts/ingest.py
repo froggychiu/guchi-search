@@ -259,6 +259,105 @@ async def main():
             print_report("normalize-tw", scanned, changed, subs, args.dry_run)
         return
 
+    if args.mine_vocab:
+        # Propose glossary rules from corrections proofreaders already made.
+        # Proposals only — see services/vocab.py.
+        from app.services.vocab import MIN_EVIDENCE
+
+        threshold = args.min_evidence or MIN_EVIDENCE
+        async with session_factory() as session:
+            proposed = await mine_rules_from_corrections(session, threshold)
+            print(f"[OK] {len(proposed)} new rules proposed "
+                  f"(threshold: {threshold} matching corrections)")
+            for wrong, right, count, people in proposed:
+                print(f"    {wrong} -> {right}   ({count} corrections, {people} people)")
+            if proposed:
+                print("[OK] Pending review at /admin/vocab. Nothing is applied yet.")
+        return
+
+    if args.apply_vocab:
+        # Backfills the glossary over existing transcripts. Separate from
+        # approving a rule on purpose: approval decides what future episodes
+        # get, this decides whether to rewrite history.
+        from app.models.episode import VocabRule
+        from app.scripts.rewrite import print_report, rewrite_segments
+
+        async with session_factory() as session:
+            rules = await load_active_rules(session)
+            if not rules:
+                print("[OK] No active glossary rules.")
+                return
+            print(f"[...] applying {len(rules)} active rules")
+
+            scanned, changed, subs = await rewrite_segments(
+                session,
+                lambda text: apply_rules(text, rules),
+                dry_run=args.dry_run,
+                label="apply-vocab",
+            )
+            print_report("apply-vocab", scanned, changed, subs, args.dry_run)
+            if args.dry_run:
+                return
+
+            # Record what each rule actually did, so a rule matching far more
+            # than its author expected becomes visible in the admin list.
+            for wrong, right in rules:
+                hits = sum(n for (old, _), n in subs.items() if old == wrong)
+                row = await session.execute(
+                    select(VocabRule).where(
+                        VocabRule.wrong_text == wrong,
+                        VocabRule.right_text == right,
+                    )
+                )
+                rule = row.scalar_one_or_none()
+                if rule:
+                    rule.applied_count = hits
+            await session.commit()
+        return
+
+    if args.scan_hallucinations:
+        from app.services.transcriber import detect_hallucinations
+        async with session_factory() as session:
+            result = await session.execute(select(Episode).where(Episode.transcription_status == "done"))
+            episodes = result.scalars().all()
+            total_flagged = 0
+            for ep in episodes:
+                seg_result = await session.execute(
+                    select(Segment).where(Segment.episode_id == ep.id).order_by(Segment.start_time.asc())
+                )
+                segments = seg_result.scalars().all()
+
+                # Build the format detect_hallucinations expects
+                seg_dicts = [
+                    {"start_time": s.start_time, "end_time": s.end_time, "text": s.text}
+                    for s in segments
+                ]
+                flagged_indices = detect_hallucinations(seg_dicts)
+
+                for idx in flagged_indices:
+                    seg = segments[idx]
+                    # Skip if a pending correction already exists
+                    existing = await session.execute(
+                        select(Correction).where(
+                            Correction.segment_id == seg.id,
+                            Correction.status == "pending",
+                        )
+                    )
+                    if existing.scalar_one_or_none():
+                        continue
+                    correction = Correction(
+                        segment_id=seg.id,
+                        original_text=seg.text,
+                        suggested_text="（疑似幻覺，建議刪除）",
+                        submitter_name="系統自動偵測",
+                    )
+                    session.add(correction)
+                    total_flagged += 1
+                    print(f"  [FLAG] {ep.title} @ {seg.start_time:.0f}s: {seg.text[:50]}")
+            await session.commit()
+            print(f"[OK] Flagged {total_flagged} segments as potential hallucinations.")
+        return
+
     if args.replace_text:
         old_text, new_text_val = args.replace_text
         async with session_factory() as session:
