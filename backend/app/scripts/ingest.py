@@ -250,8 +250,6 @@ async def main():
                 label="normalize-tw",
             )
             print_report("normalize-tw", scanned, changed, subs, args.dry_run)
-            if not args.dry_run:
-                print("[OK] Re-index to update search.")
         return
 
     if args.replace_text:

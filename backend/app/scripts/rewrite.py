@@ -115,3 +115,8 @@ def print_report(
         print(f"    ... and {len(subs) - limit} more distinct substitutions")
     if dry_run:
         print("[DRY-RUN] nothing written. Re-run without dry_run to apply.")
+    else:
+        # No re-index step: /api/search reads segments straight from Postgres,
+        # so a rewrite is live as soon as it commits. Meilisearch is still
+        # written by ingest but is no longer in the read path.
+        print("[OK] Live immediately — search reads Postgres directly.")
