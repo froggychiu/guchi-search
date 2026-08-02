@@ -6,10 +6,12 @@ Whisper prompt, and why rules are reviewed before they are applied.
 
 import difflib
 
-from sqlalchemy import select
+from datetime import datetime
+
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.episode import Correction, VocabRule
+from app.models.episode import Correction, Segment, VocabRule
 
 # A proposed rule wider than this is a rewrite of the sentence, not a glossary
 # entry, and would be both unsafe and useless to apply everywhere.
@@ -123,6 +125,60 @@ async def mine_rules_from_corrections(
 
     await db.commit()
     return proposed
+
+
+# How many spellings to fold into one scan. Every spelling adds a pattern
+# match per row, so a huge single query is no cheaper than several — this is
+# about bounding one statement's cost, not minimising statement count.
+COUNT_CHUNK = 40
+
+
+async def refresh_corpus_counts(db: AsyncSession, status: str = "pending") -> int:
+    """Recompute and store how often each rule's spellings appear in the corpus.
+
+    These are the numbers the reviewer actually decides on: 彩玲 appearing in
+    41 segments means it is always a mistranscription, while 剛 appearing in
+    20,881 means the rule would wreck the transcripts.
+
+    Computed here rather than per request. Live counting was a pattern match
+    across 2.6M rows for every spelling on the page — 11 seconds against a
+    frontend that times out at 15. The corpus only changes when ingest runs,
+    so refreshing alongside mining is as fresh as the data ever is.
+    """
+    rules = (await db.execute(
+        select(VocabRule).where(VocabRule.status == status)
+    )).scalars().all()
+    if not rules:
+        return 0
+
+    spellings = list(dict.fromkeys(
+        [r.wrong_text for r in rules] + [r.right_text for r in rules]
+    ))
+    counts: dict[str, int] = {}
+    for i in range(0, len(spellings), COUNT_CHUNK):
+        chunk = spellings[i:i + COUNT_CHUNK]
+        columns = [
+            func.sum(
+                case((Segment.text.ilike(f"%{_ilike_literal(t)}%", escape="\\"), 1),
+                     else_=0)
+            ).label(f"c{j}")
+            for j, t in enumerate(chunk)
+        ]
+        row = (await db.execute(select(*columns))).one()
+        counts.update({t: int(row[j] or 0) for j, t in enumerate(chunk)})
+
+    now = datetime.utcnow()
+    for rule in rules:
+        rule.wrong_hits = counts.get(rule.wrong_text, 0)
+        rule.right_hits = counts.get(rule.right_text, 0)
+        rule.counts_updated_at = now
+    await db.commit()
+    return len(rules)
+
+
+def _ilike_literal(s: str) -> str:
+    """Escape LIKE wildcards so a spelling is matched literally."""
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def derive_rule(original: str, suggested: str) -> tuple[str, str] | None:

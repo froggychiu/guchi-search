@@ -22,7 +22,12 @@ from app.models.episode import Episode, Segment
 from app.services.rss_parser import fetch_episodes, download_audio, classify_show
 from app.services.transcriber import transcribe_audio, detect_hallucinations
 from app.services.indexer import index_episode_segments
-from app.services.vocab import apply_rules, load_active_rules, mine_rules_from_corrections
+from app.services.vocab import (
+    apply_rules,
+    load_active_rules,
+    mine_rules_from_corrections,
+    refresh_corpus_counts,
+)
 from app.models.episode import Correction
 
 
@@ -273,6 +278,8 @@ async def main():
                 print(f"    {wrong} -> {right}   ({count} corrections, {people} people)")
             if proposed:
                 print("[OK] Pending review at /admin/vocab. Nothing is applied yet.")
+            n = await refresh_corpus_counts(session)
+            print(f"[OK] Refreshed corpus counts for {n} pending rules.")
         return
 
     if args.apply_vocab:
@@ -398,6 +405,11 @@ async def main():
                 print(f"[vocab] {len(proposed)} new glossary rules proposed:")
                 for wrong, right, count, people in proposed:
                     print(f"    {wrong} -> {right}   ({count} corrections, {people} people)")
+            # The review queue decides on these numbers, so they are refreshed
+            # whether or not anything new was proposed.
+            n = await refresh_corpus_counts(session)
+            if n:
+                print(f"[vocab] refreshed corpus counts for {n} pending rules")
         except Exception as e:
             print(f"[WARN] Glossary mining skipped: {e}")
 

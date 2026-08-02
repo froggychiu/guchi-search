@@ -105,6 +105,13 @@ class VocabRule(Base):
     # Segments rewritten the last time this rule ran, for spotting a rule that
     # is matching far more than its author expected.
     applied_count: Mapped[int] = mapped_column(Integer, default=0)
+    # Cached corpus occurrence counts — the numbers a reviewer decides on.
+    # Computing them live meant a 2.6M-row pattern match per spelling and an
+    # 11-second review page; they only change when the corpus does, so they
+    # are refreshed by the nightly mining run instead.
+    wrong_hits: Mapped[int] = mapped_column(Integer, default=0)
+    right_hits: Mapped[int] = mapped_column(Integer, default=0)
+    counts_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

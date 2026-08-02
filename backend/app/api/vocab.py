@@ -1,21 +1,22 @@
 """Admin API for the transcription glossary.
 
-Rules are proposed by proofreaders through the correction form and reviewed
-here. The review response carries each rule's corpus occurrence count, because
-that number is the whole decision: 彩玲 appears in 38 segments and is always a
-mistake, while 瓜子 appears in 519 and usually means melon seeds.
+Rules are proposed by proofreaders through the correction form, or mined from
+repeated approved corrections, and reviewed here. Each rule carries its corpus
+occurrence count because that number is the whole decision: 彩玲 appears in 41
+segments and is always a mistake, while 瓜子 appears in 519 and usually means
+melon seeds.
 """
 
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import case, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import require_secret
-from app.models.episode import Segment, VocabRule
+from app.models.episode import VocabRule
 
 router = APIRouter(prefix="/api/vocab", tags=["vocab"])
 
@@ -34,50 +35,21 @@ class VocabRuleReview(BaseModel):
     note: str | None = Field(default=None, max_length=300)
 
 
-def _ilike_literal(s: str) -> str:
-    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
-async def _corpus_hits(db: AsyncSession, texts: list[str]) -> dict[str, int]:
-    """How many segments contain each spelling, in a single table scan.
-
-    Counting one spelling at a time meant a sequential scan over 2.6M segments
-    per spelling: a page of 20 rules needed 40 of them and took 14 seconds,
-    against a frontend that gives up at 15. Folding every spelling into one
-    SELECT as conditional sums makes it one scan regardless of how many are
-    being counted.
-    """
-    unique = [t for t in dict.fromkeys(texts) if t]
-    if not unique:
-        return {}
-
-    columns = [
-        func.sum(
-            case(
-                (Segment.text.ilike(f"%{_ilike_literal(t)}%", escape="\\"), 1),
-                else_=0,
-            )
-        ).label(f"c{i}")
-        for i, t in enumerate(unique)
-    ]
-    row = (await db.execute(select(*columns))).one()
-    return {t: int(row[i] or 0) for i, t in enumerate(unique)}
-
-
 @router.get("", dependencies=[Depends(require_secret)])
 async def list_rules(
     status: str = Query("pending"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=50),
-    with_counts: bool = Query(True, description="Include corpus occurrence counts"),
     db: AsyncSession = Depends(get_db),
 ):
     """List glossary rules for review, most-evidenced first.
 
-    Paginated because each corpus count is a sequential scan over 2.6M
-    segments. Mining the existing corrections produced 278 pending rules at
-    once; counting them all would have meant 556 scans and a request nobody
-    would wait for. `per_page` is capped for the same reason.
+    Corpus counts are read from the rule row, not measured here. Measuring
+    them per request meant a pattern match across 2.6M segments for every
+    spelling on the page — 11 seconds against a 15-second frontend timeout,
+    even after folding them into a single scan, because the cost is the
+    matching rather than the I/O. They are refreshed by the nightly mining
+    run; `counts_updated_at` says when.
     """
     if status not in VALID_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid status")
@@ -96,14 +68,6 @@ async def list_rules(
         .limit(per_page)
     )).scalars().all()
 
-    # One scan for the whole page rather than two per rule.
-    hits: dict[str, int] = {}
-    if with_counts and rows:
-        hits = await _corpus_hits(
-            db,
-            [r.wrong_text for r in rows] + [r.right_text for r in rows],
-        )
-
     items = []
     for rule in rows:
         item = {
@@ -117,13 +81,15 @@ async def list_rules(
             "evidence_count": rule.evidence_count,
             "applied_count": rule.applied_count,
             "created_at": rule.created_at.isoformat(),
-        }
-        if with_counts:
             # Both numbers matter. A high wrong_hits count next to an
             # already-common right_hits usually means wrong_text is a real
             # word rather than a mishearing.
-            item["wrong_hits"] = hits.get(rule.wrong_text, 0)
-            item["right_hits"] = hits.get(rule.right_text, 0)
+            "wrong_hits": rule.wrong_hits,
+            "right_hits": rule.right_hits,
+            "counts_updated_at": (
+                rule.counts_updated_at.isoformat() if rule.counts_updated_at else None
+            ),
+        }
         items.append(item)
 
     return {
