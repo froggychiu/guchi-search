@@ -75,20 +75,24 @@ export default function VocabAdminPage() {
   const [perPage, setPerPage] = useState(20);
   const [tab, setTab] = useState<string>("pending");
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [msg, setMsg] = useState<{ id: number; text: string; ok: boolean } | null>(null);
 
   const load = useCallback(
     async (status: string, key: string, p: number) => {
       setLoading(true);
+      setLoadError("");
       try {
         const data = await getVocabRules(status, key, p);
         setRules(data.rules);
         setTotal(data.total);
         setPerPage(data.per_page);
         setPage(data.page);
-      } catch {
+      } catch (e: unknown) {
         setRules([]);
         setTotal(0);
+        // Never let a failed request render as "nothing to review".
+        setLoadError(e instanceof Error ? e.message : "載入失敗");
       }
       setLoading(false);
     },
@@ -178,6 +182,22 @@ export default function VocabAdminPage() {
 
       {loading ? (
         <div className="nrk-loading">載入中</div>
+      ) : loadError ? (
+        <div className="nrk-empty">
+          <div className="nrk-empty__big">載入失敗</div>
+          <p style={{ color: "var(--signal-red)" }}>{loadError}</p>
+          <p style={{ marginTop: 8 }}>
+            這不代表沒有待審核的規則 —— 是請求本身失敗了。
+          </p>
+          <button
+            type="button"
+            onClick={() => load(tab, secret, page)}
+            className="nrk-btn nrk-btn--primary"
+            style={{ marginTop: 16 }}
+          >
+            重新載入
+          </button>
+        </div>
       ) : rules.length === 0 ? (
         <div className="nrk-empty">
           <div className="nrk-empty__big">沒有{TABS.find((t) => t.key === tab)?.label}的詞彙規則</div>

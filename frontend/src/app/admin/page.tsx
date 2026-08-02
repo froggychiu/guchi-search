@@ -22,6 +22,9 @@ export default function AdminPage() {
   const [actionMsg, setActionMsg] = useState<{ id: number; msg: string; ok: boolean } | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchLoading, setBatchLoading] = useState(false);
+  // Surfaced rather than swallowed — an empty list and a failed request
+  // look identical to the reviewer otherwise.
+  const [loadError, setLoadError] = useState("");
 
   async function handleLogin() {
     if (!secret.trim()) return;
@@ -39,13 +42,19 @@ export default function AdminPage() {
 
   async function loadCorrections(p: number, status: string) {
     try {
-      const data = await getCorrections(status, p);
+      // The secret is required: listing corrections is admin-only (SEC-12).
+      // Omitting it 403s, and swallowing that error is what made this page
+      // report "共 0 筆" while 2,748 corrections sat waiting.
+      const data = await getCorrections(status, p, secret);
       setCorrections(data.corrections);
       setTotal(data.total);
       setPage(p);
       setSelected(new Set());
-    } catch {
-      // ignore
+      setLoadError("");
+    } catch (e: unknown) {
+      setCorrections([]);
+      setTotal(0);
+      setLoadError(e instanceof Error ? e.message : "載入失敗");
     }
   }
 
@@ -190,7 +199,23 @@ export default function AdminPage() {
         </p>
       )}
 
-      {corrections.length === 0 ? (
+      {loadError ? (
+        <div className="nrk-empty">
+          <div className="nrk-empty__big">載入失敗</div>
+          <p style={{ color: "var(--signal-red)" }}>{loadError}</p>
+          <p style={{ marginTop: 8 }}>
+            這不代表沒有待審核的內容 —— 是請求本身失敗了。
+          </p>
+          <button
+            type="button"
+            onClick={() => loadCorrections(page, filter)}
+            className="nrk-btn nrk-btn--primary"
+            style={{ marginTop: 16 }}
+          >
+            重新載入
+          </button>
+        </div>
+      ) : corrections.length === 0 ? (
         <div className="nrk-empty">
           <div className="nrk-empty__big">
             沒有{filter === "pending" ? "待審核的" : ""}修正建議
