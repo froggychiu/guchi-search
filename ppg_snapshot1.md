@@ -1,0 +1,1007 @@
+- generic [active] [ref=e1]:
+  - generic:
+    - navigation [ref=e2]:
+      - link "跳至主要內容區塊" [ref=e3] [cursor=pointer]:
+        - /url: "#accesskey_c"
+      - generic [ref=e4]:
+        - link [ref=e5] [cursor=pointer]:
+          - /url: /ppg/
+          - heading "立法院議事暨公報資訊網" [level=1] [ref=e6]
+        - list [ref=e8]:
+          - listitem [ref=e9]:
+            - link "上方選單區塊" [ref=e10] [cursor=pointer]:
+              - /url: "#U"
+              - text: ":::"
+          - listitem [ref=e11]:
+            - link "中央政府總預算" [ref=e12] [cursor=pointer]:
+              - /url: /ppg/government-general-budget
+          - listitem [ref=e14]:
+            - link "政府單位專區" [ref=e15] [cursor=pointer]:
+              - /url: javascript:if(confirm('僅提供外機關政府單位透過GCA憑證上傳資料'))location='/ppg/government-agent-area'
+          - listitem [ref=e17]:
+            - link "訂閱法案" [ref=e18] [cursor=pointer]:
+              - /url: "#"
+          - listitem [ref=e20]:
+            - link "網站導覽" [ref=e21] [cursor=pointer]:
+              - /url: /ppg/sitemap
+    - generic [ref=e23]:
+      - link "上方全站搜尋區塊" [ref=e24] [cursor=pointer]:
+        - /url: "#a"
+        - text: ":::"
+      - generic [ref=e26]:
+        - textbox "全站搜尋" [ref=e27]
+        - button "全站搜尋送出" [ref=e28] [cursor=pointer]:
+          - generic [ref=e29]: 
+  - banner [ref=e30]:
+    - generic [ref=e33]:
+      - generic [ref=e34]: 第11屆第05會期
+      - list [ref=e38]:
+        - listitem [ref=e39]:
+          - link "議案 Bill" [ref=e40] [cursor=pointer]:
+            - /url: /ppg/#section-1
+            - generic [ref=e45]:
+              - text: 議案
+              - generic [ref=e46]: Bill
+        - listitem [ref=e49]:
+          - link "會議 Meeting" [ref=e50] [cursor=pointer]:
+            - /url: /ppg/#section-2
+            - generic [ref=e58]:
+              - text: 會議
+              - generic [ref=e59]: Meeting
+        - listitem [ref=e60]:
+          - link "公報 Publication" [ref=e61] [cursor=pointer]:
+            - /url: /ppg/#section-3
+            - generic [ref=e66]:
+              - text: 公報
+              - generic [ref=e67]: Publication
+  - main [ref=e70]:
+    - text: 
+    - link "中間主要內容區，此區塊呈現「議案」內容" [ref=e71] [cursor=pointer]:
+      - /url: "#section-1"
+      - text: ":::"
+    - generic [ref=e73]:
+      - generic [ref=e76]:
+        - heading [level=2] [ref=e78]:
+          - text: 議案
+          - link "議案說明" [ref=e79] [cursor=pointer]:
+            - /url: "#"
+            - generic [ref=e80]: .
+        - generic [ref=e81]:
+          - combobox "快速查詢選項選單" [ref=e82]:
+            - option "議案名稱" [selected]
+            - option "提案單位/委員"
+            - option "連署人"
+          - generic [ref=e84]:
+            - searchbox "搜尋議案" [ref=e85]
+            - button "搜尋議案(另開視窗)" [ref=e86] [cursor=pointer]:
+              - generic [ref=e87]: 
+        - button "進階搜尋 " [ref=e89] [cursor=pointer]:
+          - text: 進階搜尋
+          - generic [ref=e90]: 
+      - article [ref=e92]:
+        - tablist [ref=e96]:
+          - tab "最近通過/三讀" [selected] [ref=e97] [cursor=pointer]
+          - tab "最新院會報告事項" [ref=e98] [cursor=pointer]
+          - tab "最新院會討論事項" [ref=e99] [cursor=pointer]
+          - tab "同意權行使" [ref=e100] [cursor=pointer]
+          - tab "交付協商議案" [ref=e101] [cursor=pointer]
+        - generic [ref=e102]:
+          - tabpanel "最近通過/三讀" [ref=e103]:
+            - article [ref=e104]:
+              - generic [ref=e107]:
+                - generic [ref=e111]:
+                  - link "修正會計師法部分條文，咨請公布。" [ref=e113] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702835/process
+                  - paragraph [ref=e114]:
+                    - generic [ref=e115]: 發文日期：115年7月30日 ( 台立院議字第1150702835號 )
+                - generic [ref=e120]:
+                  - link "修正土石採取法部分條文，咨請公布。" [ref=e122] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702833/process
+                  - paragraph [ref=e123]:
+                    - generic [ref=e124]: 發文日期：115年7月30日 ( 台立院議字第1150702833號 )
+                - generic [ref=e129]:
+                  - link "修正電信管理法第三十六條及第九十五條條文，咨請公布。" [ref=e131] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702830/process
+                  - paragraph [ref=e132]:
+                    - generic [ref=e133]: 發文日期：115年7月30日 ( 台立院議字第1150702830號 )
+                - generic [ref=e138]:
+                  - link "修正中華民國刑法施行法第八條之二條文，咨請公布。" [ref=e140] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702599/process
+                  - paragraph [ref=e141]:
+                    - generic [ref=e142]: 發文日期：115年7月16日 ( 台立院議字第1150702599號 )
+                - generic [ref=e147]:
+                  - link "修正中華民國刑法第八十條條文，咨請公布。" [ref=e149] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702595/process
+                  - paragraph [ref=e150]:
+                    - generic [ref=e151]: 發文日期：115年7月16日 ( 台立院議字第1150702595號 )
+                - generic [ref=e156]:
+                  - link "制定虛擬資產服務法，咨請公布。" [ref=e158] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702480/process
+                  - paragraph [ref=e159]:
+                    - generic [ref=e160]: 發文日期：115年7月15日 ( 台立院議字第1150702480號 )
+                - generic [ref=e165]:
+                  - link "本院通過財團法人環境資源研究發展基金會、財團法人環境與發展基金會、財團法人環境權保障基金會及財團法人大嵙崁環境永續發展基金會115年度預算案，咨請公布。" [ref=e167] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702300/process
+                  - paragraph [ref=e168]:
+                    - generic [ref=e169]: 發文日期：115年7月7日 ( 台立院議字第1150702300號 )
+                - generic [ref=e174]:
+                  - link "修正廢棄物清理法部分條文，咨請公布。" [ref=e176] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702292/process
+                  - paragraph [ref=e177]:
+                    - generic [ref=e178]: 發文日期：115年7月7日 ( 台立院議字第1150702292號 )
+                - generic [ref=e183]:
+                  - link "本院通過財團法人法律扶助基金會115年度預算案，咨請公布。" [ref=e185] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702304/process
+                  - paragraph [ref=e186]:
+                    - generic [ref=e187]: 發文日期：115年7月7日 ( 台立院議字第1150702304號 )
+                - generic [ref=e192]:
+                  - link "本院通過財團法人臺灣更生保護會、財團法人福建更生保護會及財團法人犯罪被害人保護協會115年度預算案，咨請公布。" [ref=e194] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702302/process
+                  - paragraph [ref=e195]:
+                    - generic [ref=e196]: 發文日期：115年7月7日 ( 台立院議字第1150702302號 )
+                - generic [ref=e201]:
+                  - link "修正國民體育法部分條文，咨請公布。" [ref=e203] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702298/process
+                  - paragraph [ref=e204]:
+                    - generic [ref=e205]: 發文日期：115年7月6日 ( 台立院議字第1150702298號 )
+                - generic [ref=e210]:
+                  - link "修正公職人員選舉罷免法第二十六條條文，咨請公布。" [ref=e212] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702223/process
+                  - paragraph [ref=e213]:
+                    - generic [ref=e214]: 發文日期：115年6月23日 ( 台立院議字第1150702223號 )
+                - generic [ref=e219]:
+                  - link "修正文化資產保存法第四條、第九十八條及第一百十二條條文，咨請公布。" [ref=e221] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702146/process
+                  - paragraph [ref=e222]:
+                    - generic [ref=e223]: 發文日期：115年6月23日 ( 台立院議字第1150702146號 )
+                - generic [ref=e228]:
+                  - link "修正市區道路條例第二十三條條文，咨請公布。" [ref=e230] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150702144/process
+                  - paragraph [ref=e231]:
+                    - generic [ref=e232]: 發文日期：115年6月23日 ( 台立院議字第1150702144號 )
+                - generic [ref=e237]:
+                  - link "資源回收再利用法名稱修正為資源循環推動法；並修正條 文，咨請公布。" [ref=e239] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150701988/process
+                  - paragraph [ref=e240]:
+                    - generic [ref=e241]: 發文日期：115年6月12日 ( 台立院議字第1150701988號 )
+                - generic [ref=e246]:
+                  - link "修正海洋委員會海巡署組織法第三條及第十一條條文，咨請公布。" [ref=e248] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150701992/process
+                  - paragraph [ref=e249]:
+                    - generic [ref=e250]: 發文日期：115年6月9日 ( 台立院議字第1150701992號 )
+                - generic [ref=e255]:
+                  - link "修正宗教團體以自然人名義登記不動產處理暫行條例第五條條文，咨請公布。" [ref=e257] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150701984/process
+                  - paragraph [ref=e258]:
+                    - generic [ref=e259]: 發文日期：115年6月5日 ( 台立院議字第1150701984號 )
+                - generic [ref=e264]:
+                  - link "本院通過115年度中央政府保衛國家安全及強化不對稱戰力計畫採購特別預算案，咨請公布。" [ref=e266] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150701873/process
+                  - paragraph [ref=e267]:
+                    - generic [ref=e268]: 發文日期：115年5月29日 ( 台立院議字第1150701873號 )
+                - generic [ref=e273]:
+                  - link "修正娛樂稅法部分條文，咨請公布。" [ref=e275] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150701484/process
+                  - paragraph [ref=e276]:
+                    - generic [ref=e277]: 發文日期：115年5月13日 ( 台立院議字第1150701484號 )
+                - generic [ref=e282]:
+                  - link "修正醫療法第十二條及第一百零二條之一條文，咨請公布。" [ref=e284] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150701509/process
+                  - paragraph [ref=e285]:
+                    - generic [ref=e286]: 發文日期：115年5月11日 ( 台立院議字第1150701509號 )
+                - generic [ref=e291]:
+                  - link "制定保衛國家安全及強化不對稱戰力計畫採購特別條例，咨請公布。" [ref=e293] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150701511/process
+                  - paragraph [ref=e294]:
+                    - generic [ref=e295]: 發文日期：115年5月8日 ( 台立院議字第1150701511號 )
+                - generic [ref=e300]:
+                  - link "修正法院組織法第一百零六條條文，咨請公布。" [ref=e302] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150701263/process
+                  - paragraph [ref=e303]:
+                    - generic [ref=e304]: 發文日期：115年5月6日 ( 台立院議字第1150701263號 )
+                - generic [ref=e309]:
+                  - link "修正刑事訴訟法第一百零一條之一條文，咨請公布。" [ref=e311] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150701265/process
+                  - paragraph [ref=e312]:
+                    - generic [ref=e313]: 發文日期：115年5月6日 ( 台立院議字第1150701265號 )
+                - generic [ref=e318]:
+                  - link "修正教師法第二十五條及第五十三條條文，咨請公布。" [ref=e320] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150701267/process
+                  - paragraph [ref=e321]:
+                    - generic [ref=e322]: 發文日期：115年5月6日 ( 台立院議字第1150701267號 )
+                - generic [ref=e327]:
+                  - link "制定兒童托育服務法，咨請公布。" [ref=e329] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150701191/process
+                  - paragraph [ref=e330]:
+                    - generic [ref=e331]: 發文日期：115年4月30日 ( 台立院議字第1150701191號 )
+                - generic [ref=e336]:
+                  - link "增訂中華民國刑法第七十八條之一及第七十八條之二條文；並修正第七十九條之一條文，咨請公布。" [ref=e338] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700696/process
+                  - paragraph [ref=e339]:
+                    - generic [ref=e340]: 發文日期：115年3月13日 ( 台立院議字第1150700696號 )
+                - generic [ref=e345]:
+                  - link "增訂中華民國刑法施行法第七條之三條文；並修正第七條之二條文，咨請公布。" [ref=e347] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700695/process
+                  - paragraph [ref=e348]:
+                    - generic [ref=e349]: 發文日期：115年3月13日 ( 台立院議字第1150700695號 )
+                - generic [ref=e354]:
+                  - link "修正立法院組織法第三十二條、第三十三條及第三十五條條文，咨請公布。" [ref=e356] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700572/process
+                  - paragraph [ref=e357]:
+                    - generic [ref=e358]: 發文日期：115年2月23日 ( 台立院議字第1150700572號 )
+                - generic [ref=e363]:
+                  - link "修正藥事法部分條文，咨請公布。" [ref=e365] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700574/process
+                  - paragraph [ref=e366]:
+                    - generic [ref=e367]: 發文日期：115年2月23日 ( 台立院議字第1150700574號 )
+                - generic [ref=e372]:
+                  - link "修正藥害救濟法第三條及第二十八條條文，咨請公布。" [ref=e374] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700576/process
+                  - paragraph [ref=e375]:
+                    - generic [ref=e376]: 發文日期：115年2月23日 ( 台立院議字第1150700576號 )
+                - generic [ref=e381]:
+                  - link "修正政黨及其附隨組織不當取得財產處理條例第四條及第三十四條條文，咨請公布。" [ref=e383] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700570/process
+                  - paragraph [ref=e384]:
+                    - generic [ref=e385]: 發文日期：115年2月23日 ( 台立院議字第1150700570號 )
+                - generic [ref=e390]:
+                  - link "修正衛星廣播電視法部分條文，咨請公布。" [ref=e392] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700568/process
+                  - paragraph [ref=e393]:
+                    - generic [ref=e394]: 發文日期：115年2月23日 ( 台立院議字第1150700568號 )
+                - generic [ref=e399]:
+                  - link "修正住宅法部分條文，咨請公布。" [ref=e401] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700566/process
+                  - paragraph [ref=e402]:
+                    - generic [ref=e403]: 發文日期：115年2月23日 ( 台立院議字第1150700566號 )
+                - generic [ref=e408]:
+                  - link "修正交通部高速公路局組織法第七條條文，咨請公布。" [ref=e410] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700461/process
+                  - paragraph [ref=e411]:
+                    - generic [ref=e412]: 發文日期：115年2月3日 ( 台立院議字第1150700461號 )
+                - generic [ref=e417]:
+                  - link "修正交通部航港局組織法第六條條文，咨請公布。" [ref=e419] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700459/process
+                  - paragraph [ref=e420]:
+                    - generic [ref=e421]: 發文日期：115年2月3日 ( 台立院議字第1150700459號 )
+                - generic [ref=e426]:
+                  - link "修正交通部公路局組織法第七條條文，咨請公布。" [ref=e428] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700457/process
+                  - paragraph [ref=e429]:
+                    - generic [ref=e430]: 發文日期：115年2月3日 ( 台立院議字第1150700457號 )
+                - generic [ref=e435]:
+                  - link "修正農民退休儲金條例部分條文，咨請公布。" [ref=e437] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700455/process
+                  - paragraph [ref=e438]:
+                    - generic [ref=e439]: 發文日期：115年2月3日 ( 台立院議字第1150700455號 )
+                - generic [ref=e444]:
+                  - link "修正農產品市場交易法部分條文，咨請公布。" [ref=e446] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700366/process
+                  - paragraph [ref=e447]:
+                    - generic [ref=e448]: 發文日期：115年1月28日 ( 台立院議字第1150700366號 )
+                - generic [ref=e453]:
+                  - link "增訂農業科技園區設置管理條例第十五條之一條文，咨請公布。" [ref=e455] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700363/process
+                  - paragraph [ref=e456]:
+                    - generic [ref=e457]: 發文日期：115年1月28日 ( 台立院議字第1150700363號 )
+                - generic [ref=e462]:
+                  - link "修正商港法第二條及第五十三條條文，咨請公布。" [ref=e464] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700361/process
+                  - paragraph [ref=e465]:
+                    - generic [ref=e466]: 發文日期：115年1月28日 ( 台立院議字第1150700361號 )
+                - generic [ref=e471]:
+                  - link "修正公共電視法第十六條條文，咨請公布。" [ref=e473] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700353/process
+                  - paragraph [ref=e474]:
+                    - generic [ref=e475]: 發文日期：115年1月28日 ( 台立院議字第1150700353號 )
+                - generic [ref=e480]:
+                  - link "修正國軍老舊眷村改建條例第三條條文，咨請公布。" [ref=e482] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700349/process
+                  - paragraph [ref=e483]:
+                    - generic [ref=e484]: 發文日期：115年1月28日 ( 台立院議字第1150700349號 )
+                - generic [ref=e489]:
+                  - link "修正衛星廣播電視法第六十四條條文，咨請公布。" [ref=e491] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700231/process
+                  - paragraph [ref=e492]:
+                    - generic [ref=e493]: 發文日期：115年1月20日 ( 台立院議字第1150700231號 )
+                - generic [ref=e498]:
+                  - link "修正海關進口稅則部分稅則，咨請公布。" [ref=e500] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700230/process
+                  - paragraph [ref=e501]:
+                    - generic [ref=e502]: 發文日期：115年1月20日 ( 台立院議字第1150700230號 )
+                - generic [ref=e507]:
+                  - link "修正使用牌照稅法第七條條文，咨請公布。" [ref=e509] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700227/process
+                  - paragraph [ref=e510]:
+                    - generic [ref=e511]: 發文日期：115年1月20日 ( 台立院議字第1150700227號 )
+                - generic [ref=e516]:
+                  - link "修正審計部組織法第七條、第十條及第十四條條文，咨請公布。" [ref=e518] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700234/process
+                  - paragraph [ref=e519]:
+                    - generic [ref=e520]: 發文日期：115年1月16日 ( 台立院議字第1150700234號 )
+                - generic [ref=e525]:
+                  - link "制定外送員權益保障及外送平臺管理法，咨請公布。" [ref=e527] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700111/process
+                  - paragraph [ref=e528]:
+                    - generic [ref=e529]: 發文日期：115年1月15日 ( 台立院議字第1150700111號 )
+                - generic [ref=e534]:
+                  - link "修正衛星廣播電視法第二十條條文，咨請公布。" [ref=e536] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1150700086/process
+                  - paragraph [ref=e537]:
+                    - generic [ref=e538]: 發文日期：115年1月12日 ( 台立院議字第1150700086號 )
+                - generic [ref=e543]:
+                  - link "修正勞工保險條例第二十九條、第六十六條及第六十九條條文，咨請公布。" [ref=e545] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704482/process
+                  - paragraph [ref=e546]:
+                    - generic [ref=e547]: 發文日期：115年1月12日 ( 台立院議字第1140704482號 )
+                - generic [ref=e552]:
+                  - link "修正詐欺犯罪危害防制條例部分條文，咨請公布。" [ref=e554] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704480/process
+                  - paragraph [ref=e555]:
+                    - generic [ref=e556]: 發文日期：115年1月12日 ( 台立院議字第1140704480號 )
+                - generic [ref=e561]:
+                  - link "制定青年基本法，咨請公布。" [ref=e563] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704472/process
+                  - paragraph [ref=e564]:
+                    - generic [ref=e565]: 發文日期：115年1月12日 ( 台立院議字第1140704472號 )
+                - generic [ref=e570]:
+                  - link "修正公職人員選舉罷免法部分條文，咨請公布。" [ref=e572] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704470/process
+                  - paragraph [ref=e573]:
+                    - generic [ref=e574]: 發文日期：115年1月12日 ( 台立院議字第1140704470號 )
+                - generic [ref=e579]:
+                  - link "制定人工智慧基本法，咨請公布。" [ref=e581] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704339/process
+                  - paragraph [ref=e582]:
+                    - generic [ref=e583]: 發文日期：115年1月6日 ( 台立院議字第1140704339號 )
+                - generic [ref=e588]:
+                  - link "修正大眾捷運法部分條文，咨請公布。" [ref=e590] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704336/process
+                  - paragraph [ref=e591]:
+                    - generic [ref=e592]: 發文日期：115年1月6日 ( 台立院議字第1140704336號 )
+                - generic [ref=e597]:
+                  - link "修正道路交通管理處罰條例第三十一條之一、第八十六條及第九十條條文，咨請公布。" [ref=e599] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704334/process
+                  - paragraph [ref=e600]:
+                    - generic [ref=e601]: 發文日期：115年1月6日 ( 台立院議字第1140704334號 )
+                - generic [ref=e606]:
+                  - link "修正鐵路法部分條文，咨請公布。" [ref=e608] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704332/process
+                  - paragraph [ref=e609]:
+                    - generic [ref=e610]: 發文日期：115年1月6日 ( 台立院議字第1140704332號 )
+                - generic [ref=e615]:
+                  - link "本院通過中華民國114年度中央政府總預算案附屬單位預算及綜計表—營業及非營業部分案，咨請公布。" [ref=e617] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704325/process
+                  - paragraph [ref=e618]:
+                    - generic [ref=e619]: 發文日期：114年12月31日 ( 台立院議字第1140704325號 )
+                - generic [ref=e624]:
+                  - link "修正貨物稅條例第十二條之三條文，咨請公布。" [ref=e626] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704329/process
+                  - paragraph [ref=e627]:
+                    - generic [ref=e628]: 發文日期：114年12月26日 ( 台立院議字第1140704329號 )
+                - generic [ref=e633]:
+                  - link "修正使用牌照稅法第五條條文，咨請公布。" [ref=e635] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704327/process
+                  - paragraph [ref=e636]:
+                    - generic [ref=e637]: 發文日期：114年12月26日 ( 台立院議字第1140704327號 )
+                - generic [ref=e642]:
+                  - link "修正船舶法部分條文，咨請公布。" [ref=e644] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704243/process
+                  - paragraph [ref=e645]:
+                    - generic [ref=e646]: 發文日期：114年12月26日 ( 台立院議字第1140704243號 )
+                - generic [ref=e651]:
+                  - link "增訂商港法第六十五條之四條文；並修正第十五條條文，咨請公布。" [ref=e653] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704241/process
+                  - paragraph [ref=e654]:
+                    - generic [ref=e655]: 發文日期：114年12月26日 ( 台立院議字第1140704241號 )
+                - generic [ref=e660]:
+                  - link "修正氣象法第二十一條之一條文，咨請公布。" [ref=e662] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704239/process
+                  - paragraph [ref=e663]:
+                    - generic [ref=e664]: 發文日期：114年12月26日 ( 台立院議字第1140704239號 )
+                - generic [ref=e669]:
+                  - link "修正電信管理法第七十二條條文，咨請公布。" [ref=e671] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704238/process
+                  - paragraph [ref=e672]:
+                    - generic [ref=e673]: 發文日期：114年12月26日 ( 台立院議字第1140704238號 )
+                - generic [ref=e678]:
+                  - link "修正技師法第十一條及第四十二條條文，咨請公布。" [ref=e680] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704235/process
+                  - paragraph [ref=e681]:
+                    - generic [ref=e682]: 發文日期：114年12月26日 ( 台立院議字第1140704235號 )
+                - generic [ref=e687]:
+                  - link "修正自來水法第九十七條之一條文，咨請公布。" [ref=e689] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704139/process
+                  - paragraph [ref=e690]:
+                    - generic [ref=e691]: 發文日期：114年12月26日 ( 台立院議字第1140704139號 )
+                - generic [ref=e696]:
+                  - link "修正天然氣事業法第五十五條之一條文，咨請公布。" [ref=e698] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704138/process
+                  - paragraph [ref=e699]:
+                    - generic [ref=e700]: 發文日期：114年12月26日 ( 台立院議字第1140704138號 )
+                - generic [ref=e705]:
+                  - link "修正電業法第七十一條之一條文，咨請公布。" [ref=e707] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704134/process
+                  - paragraph [ref=e708]:
+                    - generic [ref=e709]: 發文日期：114年12月26日 ( 台立院議字第1140704134號 )
+                - generic [ref=e714]:
+                  - link "修正公務人員退休資遣撫卹法第三十七條、第三十八條及第六十七條條文，咨請公布。" [ref=e716] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704225/process
+                  - paragraph [ref=e717]:
+                    - generic [ref=e718]: 發文日期：114年12月18日 ( 台立院議字第1140704225號 )
+                - generic [ref=e723]:
+                  - link "修正公立學校教職員退休資遣撫卹條例第三十七條、第三十八條及第六十七條條文，咨請公布。" [ref=e725] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704224/process
+                  - paragraph [ref=e726]:
+                    - generic [ref=e727]: 發文日期：114年12月18日 ( 台立院議字第1140704224號 )
+                - generic [ref=e732]:
+                  - link "修正噪音管制法第二條、第二十六條及第二十八條條文，咨請公布。" [ref=e734] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704141/process
+                  - paragraph [ref=e735]:
+                    - generic [ref=e736]: 發文日期：114年12月18日 ( 台立院議字第1140704141號 )
+                - generic [ref=e741]:
+                  - link "增訂公司法第三百八十七條之一條文；並修正第四百四十九條條文，咨請公布。" [ref=e743] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704132/process
+                  - paragraph [ref=e744]:
+                    - generic [ref=e745]: 發文日期：114年12月18日 ( 台立院議字第1140704132號 )
+                - generic [ref=e750]:
+                  - link "增訂商業登記法第九條之一條文；並修正第三十七條條文，咨請公布。" [ref=e752] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704130/process
+                  - paragraph [ref=e753]:
+                    - generic [ref=e754]: 發文日期：114年12月18日 ( 台立院議字第1140704130號 )
+                - generic [ref=e759]:
+                  - link "修正所得稅法第十七條條文，咨請公布。" [ref=e761] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704128/process
+                  - paragraph [ref=e762]:
+                    - generic [ref=e763]: 發文日期：114年12月18日 ( 台立院議字第1140704128號 )
+                - generic [ref=e768]:
+                  - link "修正職業安全衛生法部分條文，咨請公布。" [ref=e770] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704032/process
+                  - paragraph [ref=e771]:
+                    - generic [ref=e772]: 發文日期：114年12月15日 ( 台立院議字第1140704032號 )
+                - generic [ref=e777]:
+                  - link "修正公路法部分條文，咨請公布。" [ref=e779] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704030/process
+                  - paragraph [ref=e780]:
+                    - generic [ref=e781]: 發文日期：114年12月12日 ( 台立院議字第1140704030號 )
+                - generic [ref=e786]:
+                  - link "制定全民健康保險資料管理條例，咨請公布。" [ref=e788] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704034/process
+                  - paragraph [ref=e789]:
+                    - generic [ref=e790]: 發文日期：114年12月12日 ( 台立院議字第1140704034號 )
+                - generic [ref=e795]:
+                  - link "本院通過中央政府花蓮馬太鞍溪堰塞湖災後重建特別預算案，咨請公布。" [ref=e797] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704028/process
+                  - paragraph [ref=e798]:
+                    - generic [ref=e799]: 發文日期：114年12月10日 ( 台立院議字第1140704028號 )
+                - generic [ref=e804]:
+                  - link "行政院移請本院覆議財政收支劃分法修正部分條文一案，經決議：「本院原決議予以維持」；本院於114年11月18日咨請公布之修正財政收支劃分法部分條文，再咨請公布。" [ref=e806] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140704044/process
+                  - paragraph [ref=e807]:
+                    - generic [ref=e808]: 發文日期：114年12月5日 ( 台立院議字第1140704044號 )
+                - generic [ref=e813]:
+                  - link "制定內政部新住民發展署組織法，咨請公布。" [ref=e815] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703902/process
+                  - paragraph [ref=e816]:
+                    - generic [ref=e817]: 發文日期：114年12月2日 ( 台立院議字第1140703902號 )
+                - generic [ref=e822]:
+                  - link "修正內政部組織法第五條及第七條條文，咨請公布。" [ref=e824] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703901/process
+                  - paragraph [ref=e825]:
+                    - generic [ref=e826]: 發文日期：114年12月2日 ( 台立院議字第1140703901號 )
+                - generic [ref=e831]:
+                  - link "修正財政收支劃分法第十六條之一及第三十八條之二條文，咨請公布。" [ref=e833] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703898/process
+                  - paragraph [ref=e834]:
+                    - generic [ref=e835]: 發文日期：114年11月26日 ( 台立院議字第1140703898號 )
+                - generic [ref=e840]:
+                  - link "修正公民投票法第二十三條條文，咨請公布。" [ref=e842] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703895/process
+                  - paragraph [ref=e843]:
+                    - generic [ref=e844]: 發文日期：114年11月26日 ( 台立院議字第1140703895號 )
+                - generic [ref=e849]:
+                  - link "修正地方制度法部分條文，咨請公布。" [ref=e851] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703905/process
+                  - paragraph [ref=e852]:
+                    - generic [ref=e853]: 發文日期：114年11月26日 ( 台立院議字第1140703905號 )
+                - generic [ref=e858]:
+                  - link "修正環境影響評估法第五條條文，咨請公布。" [ref=e860] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703792/process
+                  - paragraph [ref=e861]:
+                    - generic [ref=e862]: 發文日期：114年11月18日 ( 台立院議字第1140703792號 )
+                - generic [ref=e867]:
+                  - link "修正財政收支劃分法部分條文，咨請公布。" [ref=e869] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703793/process
+                  - paragraph [ref=e870]:
+                    - generic [ref=e871]: 發文日期：114年11月18日 ( 台立院議字第1140703793號 )
+                - generic [ref=e876]:
+                  - link "修正發展觀光條例第十一條條文，咨請公布。" [ref=e878] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703789/process
+                  - paragraph [ref=e879]:
+                    - generic [ref=e880]: 發文日期：114年11月18日 ( 台立院議字第1140703789號 )
+                - generic [ref=e885]:
+                  - link "修正地質法第五條條文，咨請公布。" [ref=e887] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703787/process
+                  - paragraph [ref=e888]:
+                    - generic [ref=e889]: 發文日期：114年11月18日 ( 台立院議字第1140703787號 )
+                - generic [ref=e894]:
+                  - link "修正公務人員考績法第三條、第十一條及第十二條條文，咨請公布。" [ref=e896] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703477/process
+                  - paragraph [ref=e897]:
+                    - generic [ref=e898]: 發文日期：114年11月10日 ( 台立院議字第1140703477號 )
+                - generic [ref=e903]:
+                  - link "修正停車場法第四條、第三十二條及第三十八條條文，咨請公布。" [ref=e905] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703475/process
+                  - paragraph [ref=e906]:
+                    - generic [ref=e907]: 發文日期：114年11月10日 ( 台立院議字第1140703475號 )
+                - generic [ref=e912]:
+                  - link "修正道路交通管理處罰條例部分條文，咨請公布。" [ref=e914] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703472/process
+                  - paragraph [ref=e915]:
+                    - generic [ref=e916]: 發文日期：114年11月10日 ( 台立院議字第1140703472號 )
+                - generic [ref=e921]:
+                  - link "制定花蓮馬太鞍溪堰塞湖災後重建特別條例，咨請公布。" [ref=e923] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703548/process
+                  - paragraph [ref=e924]:
+                    - generic [ref=e925]: 發文日期：114年11月5日 ( 台立院議字第1140703548號 )
+                - generic [ref=e930]:
+                  - link "制定行政區劃程序法，咨請公布。" [ref=e932] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703334/process
+                  - paragraph [ref=e933]:
+                    - generic [ref=e934]: 發文日期：114年11月4日 ( 台立院議字第1140703334號 )
+                - generic [ref=e939]:
+                  - link "修正個人資料保護法部分條文，咨請公布。" [ref=e941] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703329/process
+                  - paragraph [ref=e942]:
+                    - generic [ref=e943]: 發文日期：114年11月4日 ( 台立院議字第1140703329號 )
+                - generic [ref=e948]:
+                  - link "修正刑事訴訟法部分條文，咨請公布。" [ref=e950] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703331/process
+                  - paragraph [ref=e951]:
+                    - generic [ref=e952]: 發文日期：114年11月4日 ( 台立院議字第1140703331號 )
+                - generic [ref=e957]:
+                  - link "制定平埔原住民族群身分法，咨請公布。" [ref=e959] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703288/process
+                  - paragraph [ref=e960]:
+                    - generic [ref=e961]: 發文日期：114年10月23日 ( 台立院議字第1140703288號 )
+                - generic [ref=e966]:
+                  - link "本院通過中央政府因應國際情勢強化經濟社會及民生國安韌性特別預算案，咨請公布。" [ref=e968] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140703234/process
+                  - paragraph [ref=e969]:
+                    - generic [ref=e970]: 發文日期：114年10月23日 ( 台立院議字第1140703234號 )
+                - generic [ref=e975]:
+                  - link "修正外國專業人才延攬及僱用法，咨請公布。" [ref=e977] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140702955/process
+                  - paragraph [ref=e978]:
+                    - generic [ref=e979]: 發文日期：114年9月16日 ( 台立院議字第1140702955號 )
+                - generic [ref=e984]:
+                  - link "修正資通安全管理法，咨請公布。" [ref=e986] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140702949/process
+                  - paragraph [ref=e987]:
+                    - generic [ref=e988]: 發文日期：114年9月16日 ( 台立院議字第1140702949號 )
+                - generic [ref=e993]:
+                  - link "本院通過114年度中央政府總預算追加預算案，咨請公布。" [ref=e995] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140702947/process
+                  - paragraph [ref=e996]:
+                    - generic [ref=e997]: 發文日期：114年9月12日 ( 台立院議字第1140702947號 )
+                - generic [ref=e1002]:
+                  - link "本院通過中央政府丹娜絲颱風及七二八豪雨災後復原重建特別預算案，咨請公布。" [ref=e1004] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140702945/process
+                  - paragraph [ref=e1005]:
+                    - generic [ref=e1006]: 發文日期：114年9月8日 ( 台立院議字第1140702945號 )
+                - generic [ref=e1011]:
+                  - link "修正貨物稅條例第十二條之五條文，咨請公布。" [ref=e1013] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140702943/process
+                  - paragraph [ref=e1014]:
+                    - generic [ref=e1015]: 發文日期：114年9月1日 ( 台立院議字第1140702943號 )
+                - generic [ref=e1020]:
+                  - link "修正因應國際情勢強化經濟社會及民生國安韌性特別條例第六條及第九條條文，咨請公布。" [ref=e1022] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140702927/process
+                  - paragraph [ref=e1023]:
+                    - generic [ref=e1024]: 發文日期：114年9月1日 ( 台立院議字第1140702927號 )
+                - generic [ref=e1029]:
+                  - link "制定丹娜絲颱風及七二八豪雨災後復原重建特別條例，咨請公布。" [ref=e1031] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140702800/process
+                  - paragraph [ref=e1032]:
+                    - generic [ref=e1033]: 發文日期：114年8月18日 ( 台立院議字第1140702800號 )
+                - generic [ref=e1038]:
+                  - link "修正農業保險法第二條及第十條條文，咨請公布。" [ref=e1040] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140702706/process
+                  - paragraph [ref=e1041]:
+                    - generic [ref=e1042]: 發文日期：114年8月13日 ( 台立院議字第1140702706號 )
+                - generic [ref=e1047]:
+                  - link "修正貨物稅條例第八條、第十一條及第三十七條條文，咨請公布。" [ref=e1049] [cursor=pointer]:
+                    - /url: /ppg/bills/latest-pass-third-readings/1140702703/process
+                  - paragraph [ref=e1050]:
+                    - generic [ref=e1051]: 發文日期：114年8月13日 ( 台立院議字第1140702703號 )
+          - text:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+    - separator [ref=e1053]
+    - link "中間主要內容區，此區塊呈現「會議」內容" [ref=e1054] [cursor=pointer]:
+      - /url: "#section-2"
+      - text: ":::"
+    - generic [ref=e1056]:
+      - generic [ref=e1059]:
+        - heading [level=2] [ref=e1061]:
+          - text: 會議
+          - link "會議說明" [ref=e1062] [cursor=pointer]:
+            - /url: "#"
+            - generic [ref=e1063]: .
+        - generic [ref=e1064]:
+          - combobox "快速查詢選項選單" [ref=e1065]:
+            - option "會議名稱/事由" [selected]
+            - option "會議日期"
+          - generic [ref=e1066]:
+            - searchbox "搜尋會議" [ref=e1067]
+            - button "搜尋會議(另開視窗)" [ref=e1068] [cursor=pointer]:
+              - generic [ref=e1069]: 
+        - button "進階搜尋 " [ref=e1071] [cursor=pointer]:
+          - text: 進階搜尋
+          - generic [ref=e1072]: 
+      - article [ref=e1074]:
+        - tablist [ref=e1078]:
+          - tab "所有會議" [selected] [ref=e1079] [cursor=pointer]
+          - tab "院會" [selected] [ref=e1080] [cursor=pointer]
+          - tab "全院委員會" [selected] [ref=e1081] [cursor=pointer]
+          - tab "常設委員會" [ref=e1082] [cursor=pointer]
+          - tab "特種委員會" [ref=e1083] [cursor=pointer]
+          - tab "黨團協商" [ref=e1084] [cursor=pointer]
+          - tab "其他" [ref=e1085] [cursor=pointer]
+        - generic [ref=e1086]:
+          - tabpanel "所有會議" [ref=e1087]:
+            - generic [ref=e1089]:
+              - generic [ref=e1093]:
+                - generic [ref=e1101]:
+                  - combobox "年份" [ref=e1102]:
+                    - option "民國116年"
+                    - option "民國115年" [selected]
+                    - option "民國114年"
+                    - option "民國113年"
+                    - option "民國112年"
+                    - option "民國111年"
+                  - combobox "月份" [ref=e1103]:
+                    - option "1月"
+                    - option "2月"
+                    - option "3月"
+                    - option "4月"
+                    - option "5月"
+                    - option "6月"
+                    - option "7月"
+                    - option "8月" [selected]
+                    - option "9月"
+                    - option "10月"
+                    - option "11月"
+                    - option "12月"
+                - generic [ref=e1107]:
+                  - generic [ref=e1108]: 日
+                  - generic [ref=e1109]: 一
+                  - generic [ref=e1110]: 二
+                  - generic [ref=e1111]: 三
+                  - generic [ref=e1112]: 四
+                  - generic [ref=e1113]: 五
+                  - generic [ref=e1114]: 六
+                - generic [ref=e1115]:
+                  - generic [ref=e1116]: "26"
+                  - generic [ref=e1117]: "27"
+                  - generic [ref=e1118]: "28"
+                  - generic [ref=e1119]: "29"
+                  - generic [ref=e1120]: "30"
+                  - generic [ref=e1121]: "31"
+                  - generic [ref=e1122]: "1"
+                - generic [ref=e1123]:
+                  - generic [ref=e1124]: "2"
+                  - generic [ref=e1125]: 3 .
+                  - generic [ref=e1126]: 4 .
+                  - generic [ref=e1127]: 5 .
+                  - generic [ref=e1128]: 6 .
+                  - generic [ref=e1129]: "7"
+                  - generic [ref=e1130]: "8"
+                - generic [ref=e1131]:
+                  - generic [ref=e1132]: "9"
+                  - generic [ref=e1133]: "10"
+                  - generic [ref=e1134]: "11"
+                  - generic [ref=e1135]: "12"
+                  - generic [ref=e1136]: "13"
+                  - generic [ref=e1137]: "14"
+                  - generic [ref=e1138]: "15"
+                - generic [ref=e1139]:
+                  - generic [ref=e1140]: "16"
+                  - generic [ref=e1141]: "17"
+                  - generic [ref=e1142]: "18"
+                  - generic [ref=e1143]: "19"
+                  - generic [ref=e1144]: "20"
+                  - generic [ref=e1145]: "21"
+                  - generic [ref=e1146]: "22"
+                - generic [ref=e1147]:
+                  - generic [ref=e1148]: "23"
+                  - generic [ref=e1149]: "24"
+                  - generic [ref=e1150]: "25"
+                  - generic [ref=e1151]: "26"
+                  - generic [ref=e1152]: "27"
+                  - generic [ref=e1153]: "28"
+                  - generic [ref=e1154]: "29"
+                - generic [ref=e1155]:
+                  - generic [ref=e1156]: "30"
+                  - generic [ref=e1157]: "31"
+                  - generic [ref=e1158]: "1"
+                  - generic [ref=e1159]: "2"
+                  - generic [ref=e1160]: "3"
+                  - generic [ref=e1161]: "4"
+                  - generic [ref=e1162]: "5"
+              - status [ref=e1166]:
+                - generic [ref=e1167]: 查無本日會議資料
+          - text: 26 27 28 29 30 31 1 2 3 4 . 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 1 2 3 4 5 26 27 28 29 30 31 1 2 3 4 5 6 . 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 1 2 3 4 5 26 27 28 29 30 31 1 2 3 . 4 5 . 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 1 2 3 4 5 26 27 28 29 30 31 1 2 3 4 . 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 1 2 3 4 5 26 27 28 29 30 31 1 2 3 4 . 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 1 2 3 4 5 26 27 28 29 30 31 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 1 2 3 4 5
+    - separator [ref=e1168]
+    - link "中間主要內容區，此區塊呈現「出版品」內容" [ref=e1169] [cursor=pointer]:
+      - /url: "#section-3"
+      - text: ":::"
+    - generic [ref=e1171]:
+      - generic [ref=e1174]:
+        - heading [level=2] [ref=e1176]:
+          - text: 公報
+          - link "公報說明" [ref=e1177] [cursor=pointer]:
+            - /url: "#"
+            - generic [ref=e1178]: .
+        - generic [ref=e1180]:
+          - searchbox "搜尋公報" [ref=e1181]
+          - button "搜尋公報(另開視窗)" [ref=e1182] [cursor=pointer]:
+            - generic [ref=e1183]: 
+        - button "進階搜尋 " [ref=e1185] [cursor=pointer]:
+          - text: 進階搜尋
+          - generic [ref=e1186]: 
+      - article [ref=e1188]:
+        - tablist [ref=e1192]:
+          - tab "公報" [selected] [ref=e1193] [cursor=pointer]
+          - tab "議事日程" [ref=e1194] [cursor=pointer]
+          - tab "議事錄" [ref=e1195] [cursor=pointer]
+          - tab "國是論壇彙編" [ref=e1196] [cursor=pointer]
+          - tab "立法院速紀錄(民國37~42年)" [ref=e1197] [cursor=pointer]
+          - tab "國民政府時期立法院公報(民國17~32年)" [ref=e1198] [cursor=pointer]
+          - button "公報大事紀" [ref=e1199] [cursor=pointer]
+        - generic [ref=e1200]:
+          - tabpanel "公報" [ref=e1201]:
+            - generic [ref=e1205]:
+              - button "公報" [ref=e1206] [cursor=pointer]
+              - button "more..." [ref=e1207] [cursor=pointer]
+            - generic [ref=e1210]:
+              - generic [ref=e1212]:
+                - generic [ref=e1216]:
+                  - generic [ref=e1224]:
+                    - combobox "年份" [ref=e1225]:
+                      - option "民國116年"
+                      - option "民國115年" [selected]
+                      - option "民國114年"
+                      - option "民國113年"
+                      - option "民國112年"
+                      - option "民國111年"
+                    - combobox "月份" [ref=e1226]:
+                      - option "1月"
+                      - option "2月"
+                      - option "3月"
+                      - option "4月"
+                      - option "5月"
+                      - option "6月"
+                      - option "7月"
+                      - option "8月" [selected]
+                      - option "9月"
+                      - option "10月"
+                      - option "11月"
+                      - option "12月"
+                  - generic [ref=e1230]:
+                    - generic [ref=e1231]: 日
+                    - generic [ref=e1232]: 一
+                    - generic [ref=e1233]: 二
+                    - generic [ref=e1234]: 三
+                    - generic [ref=e1235]: 四
+                    - generic [ref=e1236]: 五
+                    - generic [ref=e1237]: 六
+                  - generic [ref=e1238]:
+                    - generic [ref=e1239]: "26"
+                    - generic [ref=e1240]: "27"
+                    - generic [ref=e1241]: "28"
+                    - generic [ref=e1242]: "29"
+                    - generic [ref=e1243]: "30"
+                    - generic [ref=e1244]: "31"
+                    - generic [ref=e1245]: "1"
+                  - generic [ref=e1246]:
+                    - generic [ref=e1247]: "2"
+                    - generic [ref=e1248]: "3"
+                    - generic [ref=e1249]: "4"
+                    - generic [ref=e1250]: "5"
+                    - generic [ref=e1251]: "6"
+                    - generic [ref=e1252]: "7"
+                    - generic [ref=e1253]: "8"
+                  - generic [ref=e1254]:
+                    - generic [ref=e1255]: "9"
+                    - generic [ref=e1256]: "10"
+                    - generic [ref=e1257]: "11"
+                    - generic [ref=e1258]: "12"
+                    - generic [ref=e1259]: "13"
+                    - generic [ref=e1260]: "14"
+                    - generic [ref=e1261]: "15"
+                  - generic [ref=e1262]:
+                    - generic [ref=e1263]: "16"
+                    - generic [ref=e1264]: "17"
+                    - generic [ref=e1265]: "18"
+                    - generic [ref=e1266]: "19"
+                    - generic [ref=e1267]: "20"
+                    - generic [ref=e1268]: "21"
+                    - generic [ref=e1269]: "22"
+                  - generic [ref=e1270]:
+                    - generic [ref=e1271]: "23"
+                    - generic [ref=e1272]: "24"
+                    - generic [ref=e1273]: "25"
+                    - generic [ref=e1274]: "26"
+                    - generic [ref=e1275]: "27"
+                    - generic [ref=e1276]: "28"
+                    - generic [ref=e1277]: "29"
+                  - generic [ref=e1278]:
+                    - generic [ref=e1279]: "30"
+                    - generic [ref=e1280]: "31"
+                    - generic [ref=e1281]: "1"
+                    - generic [ref=e1282]: "2"
+                    - generic [ref=e1283]: "3"
+                    - generic [ref=e1284]: "4"
+                    - generic [ref=e1285]: "5"
+                - status [ref=e1289]:
+                  - generic [ref=e1290]: 查無本日公報資料
+              - text: 26 27 28 29 30 31 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 1 2 3 4 5
+          - text: 26 27 28 29 30 31 1 2 3 4 . 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 1 2 3 4 5 26 27 28 29 30 31 1 2 3 4 . 5 6 7 . 8 9 10 11 . 12 13 . 14 15 16 17 18 . 19 20 . 21 22 23 24 . 25 26 27 28 29 30 31 1 2 3 4 5 26 27 28 29 30 31 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 1 2 3 4 5
+    - text:                   
+  - main:      
+  - main:                  
+  - contentinfo [ref=e1291]:
+    - link "頁尾網站資訊" [ref=e1292] [cursor=pointer]:
+      - /url: "#z"
+      - text: ":::"
+    - generic [ref=e1296]:
+      - generic [ref=e1297]: 立法院議事暨公報資訊網
+      - list [ref=e1302]:
+        - listitem [ref=e1303]:
+          - link "議案" [ref=e1304] [cursor=pointer]:
+            - /url: /ppg/#section-1
+        - listitem [ref=e1305]:
+          - link "最近通過/三讀" [ref=e1306]:
+            - /url: /ppg/#section-1
+        - listitem [ref=e1307]:
+          - link "最新院會報告事項" [ref=e1308]:
+            - /url: /ppg/#section-1
+        - listitem [ref=e1309]:
+          - link "最新院會討論事項" [ref=e1310]:
+            - /url: /ppg/#section-1
+        - listitem [ref=e1311]:
+          - link "同意權行使" [ref=e1312]:
+            - /url: /ppg/#section-1
+        - listitem [ref=e1313]:
+          - link "交付協商議案" [ref=e1314]:
+            - /url: /ppg/#section-1
+      - list [ref=e1316]:
+        - listitem [ref=e1317]:
+          - link "會議" [ref=e1318] [cursor=pointer]:
+            - /url: /ppg/#section-2
+        - listitem [ref=e1319]:
+          - link "院會" [ref=e1320] [cursor=pointer]:
+            - /url: /ppg/#section-2
+        - listitem [ref=e1321]:
+          - link "全院委員會" [ref=e1322] [cursor=pointer]:
+            - /url: /ppg/#section-2
+        - listitem [ref=e1323]:
+          - link "常設委員會" [ref=e1324] [cursor=pointer]:
+            - /url: /ppg/#section-2
+        - listitem [ref=e1325]:
+          - link "特種委員會" [ref=e1326] [cursor=pointer]:
+            - /url: /ppg/#section-2
+        - listitem [ref=e1327]:
+          - link "黨團協商" [ref=e1328] [cursor=pointer]:
+            - /url: /ppg/#section-2
+        - listitem [ref=e1329]:
+          - link "其他" [ref=e1330] [cursor=pointer]:
+            - /url: /ppg/#section-2
+      - list [ref=e1332]:
+        - listitem [ref=e1333]:
+          - link "公報" [ref=e1334] [cursor=pointer]:
+            - /url: /ppg/#section-3
+        - listitem [ref=e1335]:
+          - link "公報" [ref=e1336] [cursor=pointer]:
+            - /url: /ppg/#section-3
+        - listitem [ref=e1337]:
+          - link "議事日程" [ref=e1338] [cursor=pointer]:
+            - /url: /ppg/#section-3
+        - listitem [ref=e1339]:
+          - link "議事錄" [ref=e1340] [cursor=pointer]:
+            - /url: /ppg/#section-3
+        - listitem [ref=e1341]:
+          - link "國是論壇彙編" [ref=e1342] [cursor=pointer]:
+            - /url: /ppg/#section-3
+        - listitem [ref=e1343]:
+          - link "立法院速紀錄" [ref=e1344] [cursor=pointer]:
+            - /url: /ppg/#section-3
+        - listitem [ref=e1345]:
+          - link "國民政府時期立法院公報" [ref=e1346] [cursor=pointer]:
+            - /url: /ppg/#section-3
+      - list [ref=e1348]:
+        - listitem [ref=e1349]:
+          - link "其他資訊" [ref=e1350] [cursor=pointer]:
+            - /url: javascript:;
+        - listitem [ref=e1351]:
+          - link "網站導覽" [ref=e1352] [cursor=pointer]:
+            - /url: /ppg/sitemap
+        - listitem [ref=e1353]:
+          - link "政府單位專區" [ref=e1354] [cursor=pointer]:
+            - /url: javascript:if(confirm('僅提供外機關政府單位透過GCA憑證上傳資料'))location='/ppg/government-agent-area'
+        - listitem [ref=e1355]:
+          - link "中央政府總預算" [ref=e1356] [cursor=pointer]:
+            - /url: /ppg/government-general-budget
+        - listitem [ref=e1357]:
+          - link "網站操作教學說明" [ref=e1358] [cursor=pointer]:
+            - /url: /ppg/web-instruction
+      - list [ref=e1360]:
+        - listitem [ref=e1361]:
+          - link "相關連結" [ref=e1362] [cursor=pointer]:
+            - /url: javascript:;
+        - listitem [ref=e1363]:
+          - link "立法院法律系統" [ref=e1364] [cursor=pointer]:
+            - /url: /ppg/api/v1/related-website-links/legislative-yuan-legal-system
+        - listitem [ref=e1365]:
+          - link "國會圖書館" [ref=e1366] [cursor=pointer]:
+            - /url: /ppg/api/v1/related-website-links/gov-library
+        - listitem [ref=e1367]:
+          - link "新聞知識管理系統" [ref=e1368] [cursor=pointer]:
+            - /url: /ppg/api/v1/related-website-links/news-knowledge-management-system
+        - listitem [ref=e1369]:
+          - link "立法院全球資訊網" [ref=e1370] [cursor=pointer]:
+            - /url: /ppg/api/v1/related-website-links/legislative-yuan-global-information
+        - listitem [ref=e1371]:
+          - link "多媒體隨選視訊系統" [ref=e1372] [cursor=pointer]:
+            - /url: /ppg/api/v1/related-website-links/multimedia-selection-video-system
+        - listitem [ref=e1373]:
+          - link "預算中心研究成果" [ref=e1374] [cursor=pointer]:
+            - /url: /ppg/api/v1/related-website-links/budget-center-research-result
+        - listitem [ref=e1375]:
+          - link "法制局研究成果" [ref=e1376] [cursor=pointer]:
+            - /url: /ppg/api/v1/related-website-links/legal-department-research-result
+        - listitem [ref=e1377]:
+          - link "全國法規資料庫" [ref=e1378] [cursor=pointer]:
+            - /url: /ppg/api/v1/related-website-links/national-legislation-database
+        - listitem [ref=e1379]:
+          - link "行政院全球資訊網" [ref=e1380] [cursor=pointer]:
+            - /url: /ppg/api/v1/related-website-links/gov-global-information
+        - listitem [ref=e1381]:
+          - link "總統府公報" [ref=e1382] [cursor=pointer]:
+            - /url: /ppg/api/v1/related-website-links/president-public-bulletin
+        - listitem [ref=e1383]:
+          - link "國會知識家" [ref=e1384] [cursor=pointer]:
+            - /url: /ppg/parliament-knowledge
+        - listitem [ref=e1385]:
+          - link "立法院開放資料服務平台" [ref=e1386] [cursor=pointer]:
+            - /url: /ppg/api/v1/related-website-links/legislative-yuan-data
+    - generic [ref=e1389]:
+      - link "下方功能區" [ref=e1390] [cursor=pointer]:
+        - /url: "#b"
+        - text: ":::"
+      - list [ref=e1391]:
+        - listitem [ref=e1392]:
+          - paragraph [ref=e1393]: 立法院
+        - listitem [ref=e1394]:
+          - paragraph [ref=e1395]: 100220 台北市中正區中山南路1號
+        - listitem [ref=e1396]:
+          - paragraph [ref=e1397]: 02-23585858
+        - listitem [ref=e1398]:
+          - paragraph [ref=e1399]:
+            - link "網站建言" [ref=e1400] [cursor=pointer]:
+              - /url: https://www.ly.gov.tw/Pages/List.aspx?nodeid=216
+        - listitem [ref=e1401]:
+          - paragraph [ref=e1402]:
+            - link "資訊安全政策" [ref=e1403] [cursor=pointer]:
+              - /url: https://www.ly.gov.tw/Pages/List.aspx?nodeid=10770
+        - listitem [ref=e1404]:
+          - paragraph [ref=e1405]:
+            - link "隱私權政策" [ref=e1406] [cursor=pointer]:
+              - /url: https://www.ly.gov.tw/Pages/List.aspx?nodeid=10771
+        - listitem [ref=e1407]:
+          - paragraph [ref=e1408]:
+            - link [ref=e1409] [cursor=pointer]:
+              - /url: https://accessibility.moda.gov.tw/Applications/Detail?category=20260414164226
+              - img "通過A無障礙網頁檢測" [ref=e1410]
+      - link [ref=e1411] [cursor=pointer]:
+        - /url: "#gotop"
+        - img "回頂部" [ref=e1412]

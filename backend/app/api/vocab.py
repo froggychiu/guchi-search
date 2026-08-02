@@ -10,7 +10,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -38,12 +38,30 @@ def _ilike_literal(s: str) -> str:
     return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-async def _corpus_hits(db: AsyncSession, text: str) -> int:
-    """How many segments currently contain this spelling."""
-    stmt = select(func.count(Segment.id)).where(
-        Segment.text.ilike(f"%{_ilike_literal(text)}%", escape="\\")
-    )
-    return (await db.execute(stmt)).scalar() or 0
+async def _corpus_hits(db: AsyncSession, texts: list[str]) -> dict[str, int]:
+    """How many segments contain each spelling, in a single table scan.
+
+    Counting one spelling at a time meant a sequential scan over 2.6M segments
+    per spelling: a page of 20 rules needed 40 of them and took 14 seconds,
+    against a frontend that gives up at 15. Folding every spelling into one
+    SELECT as conditional sums makes it one scan regardless of how many are
+    being counted.
+    """
+    unique = [t for t in dict.fromkeys(texts) if t]
+    if not unique:
+        return {}
+
+    columns = [
+        func.sum(
+            case(
+                (Segment.text.ilike(f"%{_ilike_literal(t)}%", escape="\\"), 1),
+                else_=0,
+            )
+        ).label(f"c{i}")
+        for i, t in enumerate(unique)
+    ]
+    row = (await db.execute(select(*columns))).one()
+    return {t: int(row[i] or 0) for i, t in enumerate(unique)}
 
 
 @router.get("", dependencies=[Depends(require_secret)])
@@ -78,6 +96,14 @@ async def list_rules(
         .limit(per_page)
     )).scalars().all()
 
+    # One scan for the whole page rather than two per rule.
+    hits: dict[str, int] = {}
+    if with_counts and rows:
+        hits = await _corpus_hits(
+            db,
+            [r.wrong_text for r in rows] + [r.right_text for r in rows],
+        )
+
     items = []
     for rule in rows:
         item = {
@@ -96,8 +122,8 @@ async def list_rules(
             # Both numbers matter. A high wrong_hits count next to an
             # already-common right_hits usually means wrong_text is a real
             # word rather than a mishearing.
-            item["wrong_hits"] = await _corpus_hits(db, rule.wrong_text)
-            item["right_hits"] = await _corpus_hits(db, rule.right_text)
+            item["wrong_hits"] = hits.get(rule.wrong_text, 0)
+            item["right_hits"] = hits.get(rule.right_text, 0)
         items.append(item)
 
     return {
