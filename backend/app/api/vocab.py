@@ -49,21 +49,33 @@ async def _corpus_hits(db: AsyncSession, text: str) -> int:
 @router.get("", dependencies=[Depends(require_secret)])
 async def list_rules(
     status: str = Query("pending"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=50),
     with_counts: bool = Query(True, description="Include corpus occurrence counts"),
     db: AsyncSession = Depends(get_db),
 ):
-    """List glossary rules for review.
+    """List glossary rules for review, most-evidenced first.
 
-    `with_counts` runs one sequential scan per rule, so it is worth turning
-    off when listing a long history rather than deciding on a short queue.
+    Paginated because each corpus count is a sequential scan over 2.6M
+    segments. Mining the existing corrections produced 278 pending rules at
+    once; counting them all would have meant 556 scans and a request nobody
+    would wait for. `per_page` is capped for the same reason.
     """
     if status not in VALID_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid status")
 
+    total = (await db.execute(
+        select(func.count(VocabRule.id)).where(VocabRule.status == status)
+    )).scalar() or 0
+
     rows = (await db.execute(
         select(VocabRule)
         .where(VocabRule.status == status)
-        .order_by(VocabRule.created_at.desc())
+        # Strongest evidence first: that is the order a reviewer wants to
+        # work through a 278-item queue in.
+        .order_by(VocabRule.evidence_count.desc(), VocabRule.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
     )).scalars().all()
 
     items = []
@@ -88,7 +100,13 @@ async def list_rules(
             item["right_hits"] = await _corpus_hits(db, rule.right_text)
         items.append(item)
 
-    return {"status": status, "total": len(items), "rules": items}
+    return {
+        "status": status,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "rules": items,
+    }
 
 
 @router.post("", dependencies=[Depends(require_secret)])

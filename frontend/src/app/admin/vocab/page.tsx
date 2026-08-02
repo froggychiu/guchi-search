@@ -29,18 +29,25 @@ export default function VocabAdminPage() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [rules, setRules] = useState<VocabRule[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
   const [tab, setTab] = useState<string>("pending");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ id: number; text: string; ok: boolean } | null>(null);
 
   const load = useCallback(
-    async (status: string, key: string) => {
+    async (status: string, key: string, p: number) => {
       setLoading(true);
       try {
-        const data = await getVocabRules(status, key);
+        const data = await getVocabRules(status, key, p);
         setRules(data.rules);
+        setTotal(data.total);
+        setPerPage(data.per_page);
+        setPage(data.page);
       } catch {
         setRules([]);
+        setTotal(0);
       }
       setLoading(false);
     },
@@ -58,13 +65,14 @@ export default function VocabAdminPage() {
   }
 
   useEffect(() => {
-    if (authenticated) load(tab, secret);
+    if (authenticated) load(tab, secret, 1);
   }, [authenticated, tab, secret, load]);
 
   async function handleReview(id: number, status: "active" | "rejected") {
     try {
       await reviewVocabRule(id, status, secret);
       setRules((prev) => prev.filter((r) => r.id !== id));
+      setTotal((t) => Math.max(0, t - 1));
       setMsg({ id, text: status === "active" ? "已啟用" : "已拒絕", ok: true });
     } catch (e: unknown) {
       setMsg({ id, text: e instanceof Error ? e.message : "操作失敗", ok: false });
@@ -133,6 +141,10 @@ export default function VocabAdminPage() {
         </div>
       ) : (
         <div style={{ marginTop: 20 }}>
+          <p className="nrk-mono" style={{ color: "var(--ink-mute)", marginBottom: 12 }}>
+            共 {total.toLocaleString()} 條 · 依佐證多寡排序 · 第 {page} /{" "}
+            {Math.max(1, Math.ceil(total / perPage))} 頁
+          </p>
           {rules.map((rule) => {
             const risky = (rule.wrong_hits ?? 0) > 100;
             return (
@@ -200,6 +212,27 @@ export default function VocabAdminPage() {
               </div>
             );
           })}
+
+          {total > perPage && (
+            <div className="nrk-pagination">
+              <button
+                type="button"
+                onClick={() => load(tab, secret, page - 1)}
+                disabled={page <= 1}
+                className="nrk-btn nrk-btn--secondary"
+              >
+                上一頁
+              </button>
+              <button
+                type="button"
+                onClick={() => load(tab, secret, page + 1)}
+                disabled={page >= Math.ceil(total / perPage)}
+                className="nrk-btn nrk-btn--secondary"
+              >
+                下一頁
+              </button>
+            </div>
+          )}
         </div>
       )}
     </main>

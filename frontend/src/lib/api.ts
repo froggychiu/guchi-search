@@ -254,12 +254,19 @@ export interface VocabRule {
 
 export async function getVocabRules(
   status: string,
-  secret: string
-): Promise<{ status: string; total: number; rules: VocabRule[] }> {
-  const res = await fetchWithRetry(
-    `${API_BASE}/api/vocab?status=${encodeURIComponent(status)}`,
-    { headers: { "X-Ingest-Secret": secret } }
-  );
+  secret: string,
+  page = 1
+): Promise<{
+  status: string;
+  total: number;
+  page: number;
+  per_page: number;
+  rules: VocabRule[];
+}> {
+  const params = new URLSearchParams({ status, page: String(page) });
+  const res = await fetchWithRetry(`${API_BASE}/api/vocab?${params}`, {
+    headers: { "X-Ingest-Secret": secret },
+  });
   return parseJSON(res);
 }
 
