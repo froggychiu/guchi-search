@@ -436,7 +436,7 @@ code, .mono, time {
 .nrk-page-title { font: var(--text-h1); color: var(--ink); margin-bottom: 8px; }
 .nrk-lede { font: var(--text-body-sm); line-height: 1.7; color: var(--ink-mute); margin-bottom: 20px; }
 .nrk-lede strong { color: var(--ink-soft); }
-.nrk-vocab-rule { display: flex; gap: 10px; align-items: baseline; font: var(--text-h3); }
+.nrk-vocab-rule { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font: var(--text-h3); }
 .nrk-vocab-rule__wrong { color: var(--signal-red); text-decoration: line-through; }
 .nrk-vocab-rule__right { color: var(--moss-ink); font-weight: 600; }
 .nrk-vocab-warn {

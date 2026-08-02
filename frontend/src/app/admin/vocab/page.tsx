@@ -14,6 +14,47 @@ const TABS = [
   { key: "rejected", label: "已拒絕" },
 ] as const;
 
+/** Above this many corpus occurrences, the "wrong" spelling is probably a word. */
+const HIGH_CORPUS_HITS = 100;
+
+/**
+ * A single character is almost never a safe glossary rule.
+ *
+ * Mining the 6,012 approved corrections showed why: the highest-evidence
+ * proposals were 剛→肛 (37 corrections, but 剛 appears in 20,881 segments),
+ * 家→佳 (76,812) and 他→她 (287,169). Those are context-dependent homophone
+ * calls a proofreader made inside one sentence — as a global rule each would
+ * corrupt tens of thousands of segments.
+ *
+ * Counts code points rather than UTF-16 units so a rare CJK character outside
+ * the BMP is not mistaken for two characters.
+ */
+function isSingleChar(text: string): boolean {
+  return [...text].length === 1;
+}
+
+function riskFlags(rule: VocabRule): { key: string; message: string }[] {
+  const flags: { key: string; message: string }[] = [];
+  if (isSingleChar(rule.wrong_text)) {
+    flags.push({
+      key: "single",
+      message:
+        `「${rule.wrong_text}」是單一個字。單字幾乎必然出現在大量無關的語境中，` +
+        `校對者當初多半是在特定句子裡做同音字判斷，而不是修一個固定的錯字。` +
+        `除非它是異體字（例如 喫→吃），否則不建議啟用。`,
+    });
+  }
+  if ((rule.wrong_hits ?? 0) > HIGH_CORPUS_HITS) {
+    flags.push({
+      key: "corpus",
+      message:
+        `「${rule.wrong_text}」在逐字稿中出現 ${rule.wrong_hits?.toLocaleString()} 段，` +
+        `數量偏多。啟用前請先確認它不是一個獨立存在的正常詞彙。`,
+    });
+  }
+  return flags;
+}
+
 /**
  * Review queue for the transcription glossary.
  *
@@ -114,9 +155,11 @@ export default function VocabAdminPage() {
         規則有兩個來源：校對者送出修正時勾選，或系統從已批准的校對紀錄中
         自動探勘（同一組修改被獨立做過 3 次以上）。啟用後，之後轉錄的每一集
         都會自動套用。
-        <strong>「錯誤形式」出現次數很高時要特別小心</strong>
-        —— 那通常代表它本身是個正常的詞（例如 瓜子、里昂），啟用會改壞正確的內容。
-        校對佐證筆數越多，代表這是反覆出現的錯誤而非個人偏好。
+        兩種情況會被標為高風險：<strong>單字規則</strong>（幾乎必然誤傷，
+        除非是異體字），以及<strong>「錯誤形式」在逐字稿出現次數很高</strong>
+        （代表它本身是個正常的詞，例如 瓜子、里昂）。
+        校對佐證筆數越多，代表這是反覆出現的錯誤而非個人偏好 ——
+        但佐證多不等於安全，兩者要分開看。
       </p>
 
       <div className="nrk-scope" role="group" aria-label="狀態">
@@ -146,18 +189,26 @@ export default function VocabAdminPage() {
             {Math.max(1, Math.ceil(total / perPage))} 頁
           </p>
           {rules.map((rule) => {
-            const risky = (rule.wrong_hits ?? 0) > 100;
+            const risks = riskFlags(rule);
+            const risky = risks.length > 0;
             return (
               <div key={rule.id} className="nrk-card" style={{ marginBottom: 12, padding: 16 }}>
                 <div className="nrk-vocab-rule">
                   <span className="nrk-vocab-rule__wrong">{rule.wrong_text}</span>
                   <span aria-hidden>→</span>
                   <span className="nrk-vocab-rule__right">{rule.right_text}</span>
+                  {isSingleChar(rule.wrong_text) && (
+                    <span className="nrk-badge nrk-badge--red">單字規則</span>
+                  )}
                 </div>
 
                 <div className="nrk-meta" style={{ marginTop: 10 }}>
                   <span
-                    className={`nrk-badge ${risky ? "nrk-badge--red" : "nrk-badge--neutral"}`}
+                    className={`nrk-badge ${
+                      (rule.wrong_hits ?? 0) > HIGH_CORPUS_HITS
+                        ? "nrk-badge--red"
+                        : "nrk-badge--neutral"
+                    }`}
                   >
                     錯誤形式出現 {rule.wrong_hits ?? "?"} 段
                   </span>
@@ -173,10 +224,13 @@ export default function VocabAdminPage() {
                 </div>
 
                 {risky && (
-                  <p className="nrk-vocab-warn">
-                    「{rule.wrong_text}」在逐字稿中出現 {rule.wrong_hits} 段，
-                    數量偏多。啟用前請先確認它不是一個獨立存在的正常詞彙。
-                  </p>
+                  <div className="nrk-vocab-warn">
+                    {risks.map((risk) => (
+                      <p key={risk.key} style={{ margin: "4px 0" }}>
+                        {risk.message}
+                      </p>
+                    ))}
+                  </div>
                 )}
 
                 {rule.applied_count > 0 && (
