@@ -22,7 +22,7 @@ from app.models.episode import Episode, Segment
 from app.services.rss_parser import fetch_episodes, download_audio, classify_show
 from app.services.transcriber import transcribe_audio, detect_hallucinations
 from app.services.indexer import index_episode_segments
-from app.services.vocab import apply_rules, load_active_rules
+from app.services.vocab import apply_rules, load_active_rules, mine_rules_from_corrections
 from app.models.episode import Correction
 
 
@@ -151,6 +151,8 @@ async def main():
     parser.add_argument("--dedup", action="store_true", help="Remove duplicate episodes (keep first by ID)")
     parser.add_argument("--retry-errors", action="store_true", help="Reset error/processing episodes to pending and re-transcribe")
     parser.add_argument("--apply-vocab", action="store_true", help="Apply all active glossary rules to existing segments")
+    parser.add_argument("--mine-vocab", action="store_true", help="Propose glossary rules from repeated approved corrections")
+    parser.add_argument("--min-evidence", type=int, default=None, help="With --mine-vocab: how many matching corrections are required (default 3)")
     parser.add_argument("--normalize-tw", action="store_true", help="Repair non-Taiwan Traditional variants (爲->為, 喫->吃, 纔->才 ...) in existing segments")
     parser.add_argument("--dry-run", action="store_true", help="With --normalize-tw / --apply-vocab: report what would change without writing")
     parser.add_argument("--replace-text", nargs=2, metavar=("OLD", "NEW"), help="Replace text in all segments")
@@ -283,6 +285,17 @@ async def main():
 
         # Normal flow: ingest new episodes, then transcribe pending ones
         await ingest_episodes(session)
+
+        # Keep the glossary growing from proofreading that already happened.
+        # Proposals only — nothing reaches a transcript without review.
+        try:
+            proposed = await mine_rules_from_corrections(session)
+            if proposed:
+                print(f"[vocab] {len(proposed)} new glossary rules proposed:")
+                for wrong, right, count, people in proposed:
+                    print(f"    {wrong} -> {right}   ({count} corrections, {people} people)")
+        except Exception as e:
+            print(f"[WARN] Glossary mining skipped: {e}")
 
         # Setup search index if needed
         try:

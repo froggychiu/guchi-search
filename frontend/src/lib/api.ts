@@ -240,6 +240,10 @@ export interface VocabRule {
   status: string;
   note: string | null;
   submitter_name: string;
+  /** "correction" | "mined" | "manual" — how the rule was proposed. */
+  source: string;
+  /** Independent approved corrections making this same substitution. */
+  evidence_count: number;
   applied_count: number;
   created_at: string;
   /** Segments currently containing the misspelling — the review signal. */

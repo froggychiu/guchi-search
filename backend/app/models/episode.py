@@ -94,6 +94,14 @@ class VocabRule(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     note: Mapped[str | None] = mapped_column(String(300), nullable=True)
     submitter_name: Mapped[str] = mapped_column(String(100), default="匿名")
+    # How the rule got here: "correction" (a proofreader ticked the box),
+    # "mined" (the same edit was made repeatedly and was proposed
+    # automatically), or "manual" (entered through the admin API).
+    source: Mapped[str] = mapped_column(String(20), default="correction")
+    # Independent approved corrections that make this same substitution. The
+    # strongest available signal that a mistake recurs rather than being a
+    # one-off: 1 is someone's opinion, 20 is a pattern.
+    evidence_count: Mapped[int] = mapped_column(Integer, default=1)
     # Segments rewritten the last time this rule ran, for spotting a rule that
     # is matching far more than its author expected.
     applied_count: Mapped[int] = mapped_column(Integer, default=0)

@@ -84,6 +84,107 @@ once = normalize_variants("因爲他很喫香纔對")
 check("idempotent", normalize_variants(once), once)
 check("...and correct", once, "因為他很吃香才對")
 
+
+
+# ---------------------------------------------------------------------------
+# Mining rules out of approved corrections. This is what makes the glossary a
+# standing mechanism rather than something that only grows when a proofreader
+# remembers to tick a box.
+# ---------------------------------------------------------------------------
+import asyncio  # noqa: E402
+from datetime import datetime  # noqa: E402
+
+
+async def _mining_checks():
+    import os as _os
+
+    db_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "vocab_test.db")
+    if _os.path.exists(db_path):
+        _os.remove(db_path)
+    _os.environ["GUCHI_DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path}"
+
+    from app.core.database import Base, async_session, engine
+    from app.models.episode import Correction, Episode, Segment, VocabRule
+    from app.services.vocab import mine_rules_from_corrections
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with async_session() as s:
+        s.add(Episode(id=1, title="t", show="直播", audio_url="x",
+                      published_at=datetime(2020, 1, 1), transcription_status="done"))
+        s.add(Segment(id=1, episode_id=1, start_time=0, end_time=1, text="x"))
+        cid = 0
+
+        def add(original, suggested, status="approved", who="甲"):
+            nonlocal cid
+            cid += 1
+            s.add(Correction(id=cid, segment_id=1, original_text=original,
+                             suggested_text=suggested, submitter_name=who,
+                             status=status))
+
+        # Seen 4 times by 3 people -> a pattern.
+        for who in ("甲", "乙", "丙", "甲"):
+            add("然後彩玲說", "然後采翎說", who=who)
+        # Seen twice -> below the threshold of 3.
+        for who in ("甲", "乙"):
+            add("他是全智隆", "他是權志龍", who=who)
+        # Plenty of evidence, but not yet approved.
+        for who in ("甲", "乙", "丙"):
+            add("這是瓜子", "這是呱吉", status="pending", who=who)
+        # The hallucination scanner must never seed the glossary.
+        for _ in range(5):
+            add("字幕提供", "（疑似幻覺，建議刪除）", who="系統自動偵測")
+        await s.commit()
+
+    async with async_session() as s:
+        proposed = await mine_rules_from_corrections(s)
+    got = {(w, r): n for w, r, n, _ in proposed}
+    check("mines the repeated substitution", got.get(("彩玲", "采翎")), 4)
+    check("ignores below-threshold pairs", ("全智隆", "權志龍") in got, False)
+    check("ignores corrections not yet approved", ("瓜子", "呱吉") in got, False)
+    check("ignores the hallucination bot", len(got), 1)
+
+    async with async_session() as s:
+        rule = (await s.execute(
+            select(VocabRule).where(VocabRule.wrong_text == "彩玲")
+        )).scalar_one()
+        check("proposed as pending, never active", rule.status, "pending")
+        check("records how it was proposed", rule.source, "mined")
+        check("records its evidence", rule.evidence_count, 4)
+        # An admin rejects it.
+        rule.status = "rejected"
+        await s.commit()
+
+    async with async_session() as s:
+        again = await mine_rules_from_corrections(s)
+    check("a rejected rule is not proposed again", again, [])
+
+    async with async_session() as s:
+        n = (await s.execute(
+            select(func.count(VocabRule.id)).where(VocabRule.wrong_text == "彩玲")
+        )).scalar()
+    check("and is not duplicated", n, 1)
+
+    # More evidence arrives for the below-threshold pair; it should now qualify.
+    async with async_session() as s:
+        s.add(Correction(id=999, segment_id=1, original_text="他是全智隆",
+                         suggested_text="他是權志龍", submitter_name="丁",
+                         status="approved"))
+        await s.commit()
+    async with async_session() as s:
+        third = await mine_rules_from_corrections(s)
+    check("qualifies once evidence reaches the threshold",
+          [(w, r) for w, r, _, _ in third], [("全智隆", "權志龍")])
+
+    await engine.dispose()
+
+
+print("\n--- mining rules from approved corrections ---")
+from sqlalchemy import func, select  # noqa: E402
+
+asyncio.run(_mining_checks())
+
 print("\n" + "=" * 60)
 if failures:
     print(f"\033[31m{len(failures)} FAILURES: {failures}\033[0m")

@@ -75,6 +75,8 @@ async def list_rules(
             "status": rule.status,
             "note": rule.note,
             "submitter_name": rule.submitter_name,
+            "source": rule.source,
+            "evidence_count": rule.evidence_count,
             "applied_count": rule.applied_count,
             "created_at": rule.created_at.isoformat(),
         }

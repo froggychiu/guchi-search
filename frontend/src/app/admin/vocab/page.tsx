@@ -103,10 +103,12 @@ export default function VocabAdminPage() {
     <main className="nrk-main">
       <h1 className="nrk-page-title">詞彙庫審核</h1>
       <p className="nrk-lede">
-        啟用後，之後轉錄的每一集都會自動套用這條修正。
+        規則有兩個來源：校對者送出修正時勾選，或系統從已批准的校對紀錄中
+        自動探勘（同一組修改被獨立做過 3 次以上）。啟用後，之後轉錄的每一集
+        都會自動套用。
         <strong>「錯誤形式」出現次數很高時要特別小心</strong>
-        —— 那通常代表它本身是個正常的詞（例如 瓜子、里昂），
-        啟用會改壞正確的內容。
+        —— 那通常代表它本身是個正常的詞（例如 瓜子、里昂），啟用會改壞正確的內容。
+        校對佐證筆數越多，代表這是反覆出現的錯誤而非個人偏好。
       </p>
 
       <div className="nrk-scope" role="group" aria-label="狀態">
@@ -150,8 +152,11 @@ export default function VocabAdminPage() {
                   <span className="nrk-badge nrk-badge--neutral">
                     正確形式出現 {rule.right_hits ?? "?"} 段
                   </span>
+                  <span className="nrk-badge nrk-badge--green">
+                    {rule.evidence_count} 筆校對佐證
+                  </span>
                   <span className="nrk-mono" style={{ color: "var(--ink-mute)" }}>
-                    {rule.submitter_name}
+                    {rule.source === "mined" ? "自動探勘" : rule.submitter_name}
                   </span>
                 </div>
 

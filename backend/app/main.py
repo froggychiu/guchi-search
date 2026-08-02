@@ -161,7 +161,7 @@ async def trigger_maintenance(
         raise HTTPException(status_code=403, detail="Invalid secret")
     # "setup" re-applies Meilisearch index settings only — no documents are
     # touched, so it is the cheap way to roll out a settings change.
-    if action not in ("setup", "dedup", "reclassify", "reindex", "retry-errors", "normalize-tw", "apply-vocab", "replace-text", "scan-hallucinations"):
+    if action not in ("setup", "dedup", "reclassify", "reindex", "retry-errors", "normalize-tw", "apply-vocab", "mine-vocab", "replace-text", "scan-hallucinations"):
         raise HTTPException(status_code=400, detail="Invalid action")
 
     # normalize-tw and apply-vocab rewrite existing transcripts, so both
