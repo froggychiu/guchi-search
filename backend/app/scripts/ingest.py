@@ -27,9 +27,14 @@ from app.models.episode import Correction
 
 
 async def setup_database(engine):
-    """Create all database tables."""
+    """Create all database tables, and add any columns models have gained."""
+    from app.core.schema import sync_columns
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        added = await conn.run_sync(lambda c: sync_columns(c, Base.metadata))
+    if added:
+        print(f"[OK] Added missing columns: {', '.join(added)}")
     print("[OK] Database tables created.")
 
 

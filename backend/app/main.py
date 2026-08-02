@@ -14,6 +14,7 @@ from app.api.corrections import router as corrections_router
 from app.api.vocab import router as vocab_router
 from app.core.config import settings
 from app.core.database import Base, engine
+from app.core.schema import sync_columns
 
 # Without this, nothing this module logs is ever seen. `getLogger(__name__)`
 # has no handler of its own and propagates to the root logger, which under
@@ -38,6 +39,10 @@ async def lifespan(app: FastAPI):
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            # create_all builds missing tables but ignores missing columns on
+            # tables that already exist, which is how adding a field to an
+            # existing model used to break every read of that table.
+            await conn.run_sync(lambda c: sync_columns(c, Base.metadata))
         logger.info("Database tables verified / created.")
     except Exception as e:
         logger.warning(f"Skipping table create at startup: {e}")

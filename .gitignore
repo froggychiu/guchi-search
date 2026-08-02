@@ -35,3 +35,4 @@ Thumbs.db
 backend/tests/test.db
 backend/tests/rewrite_test.db
 backend/tests/vocab_test.db
+backend/tests/schema_test.db
