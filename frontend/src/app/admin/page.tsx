@@ -9,6 +9,7 @@ import {
   formatTime,
   type CorrectionItem,
 } from "@/lib/api";
+import AdminTabs from "@/components/AdminTabs";
 
 export default function AdminPage() {
   const [secret, setSecret] = useState("");
@@ -147,6 +148,7 @@ export default function AdminPage() {
 
   return (
     <main className="nrk-main nrk-main--wide">
+      <AdminTabs />
       <div className="nrk-admin-head">
         <h1>校對審核</h1>
         <div className="nrk-chips" style={{ margin: 0 }}>

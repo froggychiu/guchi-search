@@ -7,6 +7,7 @@ import {
   verifySecret,
   type VocabRule,
 } from "@/lib/api";
+import AdminTabs from "@/components/AdminTabs";
 
 const TABS = [
   { key: "pending", label: "待審核" },
@@ -153,7 +154,8 @@ export default function VocabAdminPage() {
   }
 
   return (
-    <main className="nrk-main">
+    <main className="nrk-main nrk-main--wide">
+      <AdminTabs />
       <h1 className="nrk-page-title">詞彙庫審核</h1>
       <p className="nrk-lede">
         規則有兩個來源：校對者送出修正時勾選，或系統從已批准的校對紀錄中

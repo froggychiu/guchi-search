@@ -432,6 +432,26 @@ code, .mono, time {
 }
 .nrk-hit__text mark { background: color-mix(in srgb, var(--signal-yellow) 55%, transparent); padding: 0 2px; border-radius: 2px; color: var(--ink); font-weight: 500; }
 .nrk-hit--title-only { justify-content: flex-start; color: var(--moss-ink); }
+/* Admin area tabs. The glossary queue had no entry point anywhere, so the
+   only way to reach it was typing the URL. */
+.nrk-admin-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+.nrk-admin-tab {
+  padding: 10px 16px;
+  font: var(--text-body-sm);
+  font-weight: 500;
+  color: var(--ink-mute);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.nrk-admin-tab:hover { color: var(--ink); text-decoration: none; }
+.nrk-admin-tab--active { color: var(--clay); border-bottom-color: var(--clay); }
+
 /* Glossary review queue (/admin/vocab). */
 .nrk-page-title { font: var(--text-h1); color: var(--ink); margin-bottom: 8px; }
 .nrk-lede { font: var(--text-body-sm); line-height: 1.7; color: var(--ink-mute); margin-bottom: 20px; }

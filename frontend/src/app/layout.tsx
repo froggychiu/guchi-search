@@ -32,7 +32,7 @@ export default function RootLayout({
             </a>
             <nav className="nrk-nav">
               <a href="/">檢索</a>
-              <a href="/admin" className="nrk-nav__mute">校對審核</a>
+              <a href="/admin" className="nrk-nav__mute">後台</a>
             </nav>
           </div>
         </header>
