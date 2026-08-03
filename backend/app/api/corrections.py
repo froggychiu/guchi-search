@@ -1,17 +1,27 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.ratelimit import SlidingWindow, client_key
 from app.core.security import check_secret, require_secret
 from app.models.episode import Correction, Segment, Episode, VocabRule
 from app.services.indexer import index_episode_segments
 from app.services.vocab import derive_rule
 
 router = APIRouter(prefix="/api/corrections", tags=["corrections"])
+
+# Generous enough that a person working through an episode never notices, tight
+# enough that a script cannot walk the corpus. Real proofreaders average a few
+# corrections a minute at most.
+_per_client = SlidingWindow(limit=20, window_seconds=60)
+
+# Ceiling on corrections filed site-wide in an hour. The busiest genuine hour
+# on record is far below this; crossing it means something automated is running.
+GLOBAL_HOURLY_LIMIT = 500
 
 
 @router.get("/verify-secret")
@@ -31,8 +41,13 @@ class BatchApproveRequest(BaseModel):
 
 class CorrectionSubmit(BaseModel):
     segment_id: int
-    suggested_text: str
-    submitter_name: str = "匿名"
+    # A transcript line is a spoken sentence; 2000 characters is far more than
+    # any of them and still bounds what one request can store. Unbounded, this
+    # was a free write of arbitrary size into the database (SEC-09).
+    suggested_text: str = Field(min_length=1, max_length=2000)
+    # The column is String(100). Without a matching limit here, a longer name
+    # reached Postgres and came back as a 500.
+    submitter_name: str = Field(default="匿名", max_length=50)
     # When set, the edit is also proposed as a glossary rule so the same
     # mistake gets fixed in every other episode. Proposed only — an admin
     # reviews it before it is ever applied (see services/vocab.py).
@@ -41,10 +56,38 @@ class CorrectionSubmit(BaseModel):
 
 @router.post("")
 async def submit_correction(
+    request: Request,
     body: CorrectionSubmit,
     db: AsyncSession = Depends(get_db),
 ):
-    """Submit a correction suggestion for a segment."""
+    """Submit a correction suggestion for a segment.
+
+    Deliberately unauthenticated — anyone reading a transcript can fix a line.
+    Rate limited instead, at two levels; see core/ratelimit.py for why one is
+    not enough (SEC-09).
+    """
+    retry_after = _per_client.check(client_key(request))
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="送出太頻繁，請稍後再試",
+            headers={"Retry-After": str(int(retry_after))},
+        )
+
+    # Bounds how fast the queue can grow regardless of who is filing. Unlike
+    # the per-client window this cannot be sidestepped with a spoofed header.
+    recent = (await db.execute(
+        select(func.count(Correction.id)).where(
+            Correction.created_at >= datetime.utcnow() - timedelta(hours=1)
+        )
+    )).scalar() or 0
+    if recent >= GLOBAL_HOURLY_LIMIT:
+        raise HTTPException(
+            status_code=429,
+            detail="目前校對送出量過大，請稍後再試",
+            headers={"Retry-After": "600"},
+        )
+
     segment = await db.get(Segment, body.segment_id)
     if not segment:
         raise HTTPException(status_code=404, detail="Segment not found")

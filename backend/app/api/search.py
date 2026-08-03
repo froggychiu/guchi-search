@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 
 import opencc
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import AfterValidator
+from typing import Annotated
 from sqlalchemy import and_, or_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -117,6 +119,33 @@ HIGHLIGHT_POST_TAG = "</mark>"
 ALLOWED_SHOWS = set(settings.show_keywords.keys()) | {settings.default_show}
 
 
+def _reject_null_byte(s: str) -> str:
+    """Postgres TEXT cannot hold a null byte, so asyncpg raises before the
+    query runs and FastAPI turns that into a 500 (SEC-08). Both /api/search
+    and /api/text-count are public, so this was a free way to make the site
+    return errors."""
+    if "\x00" in s:
+        raise ValueError("Null byte not allowed")
+    return s
+
+
+# Query() must sit INSIDE Annotated. Written as `q: SearchQuery = Query(...)`
+# — the form the QA report suggested — FastAPI drops the AfterValidator
+# entirely and the null byte reaches the database unchecked, with the endpoint
+# still returning 200. Verified both ways before settling on this one.
+SearchQuery = Annotated[
+    str,
+    Query(min_length=1, description="Search query"),
+    AfterValidator(_reject_null_byte),
+]
+
+CountQuery = Annotated[
+    str,
+    Query(min_length=1, max_length=200, description="Exact substring to count"),
+    AfterValidator(_reject_null_byte),
+]
+
+
 def _tokens(q: str) -> list[str]:
     """Split a query into the terms that must all be present.
 
@@ -206,7 +235,7 @@ async def _log_search_query(query: str) -> None:
 
 @router.get("/search")
 async def search(
-    q: str = Query(..., min_length=1, description="Search query"),
+    q: SearchQuery,
     show: str | None = Query(None, description="Filter by show name"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
@@ -456,7 +485,7 @@ async def search(
 
 @router.get("/text-count")
 async def text_count(
-    q: str = Query(..., min_length=1, description="Exact substring to count"),
+    q: CountQuery,
     db: AsyncSession = Depends(get_db),
 ):
     """Count segments where text contains the EXACT substring `q`.

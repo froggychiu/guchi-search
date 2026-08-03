@@ -37,3 +37,4 @@ backend/tests/rewrite_test.db
 backend/tests/vocab_test.db
 backend/tests/schema_test.db
 backend/tests/vocab_counts_test.db
+backend/tests/ratelimit_test.db

@@ -187,6 +187,7 @@ export default function EpisodePage({ params }: { params: Promise<{ id: string }
           value={submitterName}
           onChange={(e) => setSubmitterName(e.target.value)}
           placeholder="匿名"
+          maxLength={50}
         />
         <span className="nrk-mono">點擊時間戳可跳播 · 點文字旁圖示可建議修正</span>
       </div>
@@ -250,6 +251,7 @@ export default function EpisodePage({ params }: { params: Promise<{ id: string }
                       value={editText}
                       onChange={(e) => setEditText(e.target.value)}
                       rows={3}
+                      maxLength={2000}
                     />
                     <label className="nrk-vocab-opt">
                       <input
