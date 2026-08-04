@@ -4,7 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import {
   getVocabRules,
   reviewVocabRule,
-  verifySecret,
+  createAdminSession,
+  storeAdminSession,
+  loadAdminSession,
+  clearAdminSession,
   type VocabRule,
 } from "@/lib/api";
 import AdminTabs from "@/components/AdminTabs";
@@ -90,10 +93,17 @@ export default function VocabAdminPage() {
         setPerPage(data.per_page);
         setPage(data.page);
       } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "載入失敗";
+        if (msg.includes("expired") || msg.includes("Invalid")) {
+          clearAdminSession();
+          setAuthenticated(false);
+          setLoginError("登入已過期，請重新輸入金鑰");
+          return;
+        }
         setRules([]);
         setTotal(0);
         // Never let a failed request render as "nothing to review".
-        setLoadError(e instanceof Error ? e.message : "載入失敗");
+        setLoadError(msg);
       }
       setLoading(false);
     },
@@ -104,11 +114,26 @@ export default function VocabAdminPage() {
     if (!secret.trim()) return;
     setLoginLoading(true);
     setLoginError("");
-    const ok = await verifySecret(secret);
+    // Trade the secret for a token and forget the secret. Only the token is
+    // stored, and it cannot reach the destructive maintenance endpoints.
+    const session = await createAdminSession(secret);
     setLoginLoading(false);
-    if (ok) setAuthenticated(true);
-    else setLoginError("金鑰錯誤，請重新輸入");
+    if (session) {
+      storeAdminSession(session.token, session.expires_at);
+      setSecret(session.token);
+      setAuthenticated(true);
+    } else {
+      setLoginError("金鑰錯誤，請重新輸入");
+    }
   }
+
+  useEffect(() => {
+    const existing = loadAdminSession();
+    if (existing) {
+      setSecret(existing);
+      setAuthenticated(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (authenticated) load(tab, secret, 1);

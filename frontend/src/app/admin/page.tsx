@@ -4,7 +4,10 @@ import { useState, useEffect } from "react";
 import {
   getCorrections,
   reviewCorrection,
-  verifySecret,
+  createAdminSession,
+  storeAdminSession,
+  loadAdminSession,
+  clearAdminSession,
   batchApprove,
   formatTime,
   type CorrectionItem,
@@ -31,15 +34,28 @@ export default function AdminPage() {
     if (!secret.trim()) return;
     setLoginLoading(true);
     setLoginError("");
-    const ok = await verifySecret(secret);
+    // Trade the secret for a token and forget the secret. Only the token is
+    // stored, and it cannot reach the destructive maintenance endpoints.
+    const session = await createAdminSession(secret);
     setLoginLoading(false);
-    if (ok) {
+    if (session) {
+      storeAdminSession(session.token, session.expires_at);
+      setSecret(session.token);
       setAuthenticated(true);
-      loadCorrections(1, filter);
     } else {
       setLoginError("金鑰錯誤，請重新輸入");
     }
   }
+
+  // Reuse a session started on the other review page — the whole point of
+  // issuing a token rather than keeping the secret around.
+  useEffect(() => {
+    const existing = loadAdminSession();
+    if (existing) {
+      setSecret(existing);
+      setAuthenticated(true);
+    }
+  }, []);
 
   async function loadCorrections(p: number, status: string) {
     try {
@@ -53,9 +69,18 @@ export default function AdminPage() {
       setSelected(new Set());
       setLoadError("");
     } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "載入失敗";
+      // An expired or revoked token should return to the login form rather
+      // than render as an error the reviewer cannot act on.
+      if (msg.includes("expired") || msg.includes("Invalid")) {
+        clearAdminSession();
+        setAuthenticated(false);
+        setLoginError("登入已過期，請重新輸入金鑰");
+        return;
+      }
       setCorrections([]);
       setTotal(0);
-      setLoadError(e instanceof Error ? e.message : "載入失敗");
+      setLoadError(msg);
     }
   }
 

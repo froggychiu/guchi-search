@@ -7,7 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.ratelimit import SlidingWindow, client_key
-from app.core.security import check_secret, require_secret
+from app.core.security import (
+    check_review_credential,
+    check_secret,
+    issue_session_token,
+    require_review,
+)
 from app.models.episode import Correction, Segment, Episode, VocabRule
 from app.services.indexer import index_episode_segments
 from app.services.vocab import derive_rule
@@ -24,15 +29,41 @@ _per_client = SlidingWindow(limit=20, window_seconds=60)
 GLOBAL_HOURLY_LIMIT = 500
 
 
+# Brute-forcing the secret should be slow. Separate from the correction
+# limiter so a busy proofreading session cannot lock out a login.
+_login_attempts = SlidingWindow(limit=10, window_seconds=300)
+
+
 @router.get("/verify-secret")
 async def verify_secret(x_ingest_secret: str = Header(None)):
-    """Verify the admin secret (sent via X-Ingest-Secret header).
-
-    SEC-05 / SEC-06: header-only (no query param), constant-time compare.
-    """
-    if not check_secret(x_ingest_secret):
+    """Check a credential without minting anything. Accepts either kind."""
+    if not check_review_credential(x_ingest_secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
     return {"status": "ok"}
+
+
+@router.post("/session")
+async def create_session(request: Request, x_ingest_secret: str = Header(None)):
+    """Exchange the raw secret for a short-lived, review-scoped token.
+
+    The browser holds the token from here on, never the secret. See
+    core/security.py for what the token deliberately cannot do.
+    """
+    retry_after = _login_attempts.check(client_key(request))
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="嘗試次數過多，請稍後再試",
+            headers={"Retry-After": str(int(retry_after))},
+        )
+
+    # The raw secret only: a token cannot mint a fresh token, so a stolen one
+    # expires when it says it will rather than renewing itself indefinitely.
+    if not check_secret(x_ingest_secret):
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
+    token, expires_at = issue_session_token()
+    return {"token": token, "expires_at": expires_at}
 
 
 class BatchApproveRequest(BaseModel):
@@ -190,7 +221,7 @@ async def list_contributors(
     }
 
 
-@router.get("", dependencies=[Depends(require_secret)])
+@router.get("", dependencies=[Depends(require_review)])
 async def list_corrections(
     status: str = Query("pending"),
     page: int = Query(1, ge=1),
@@ -238,7 +269,7 @@ async def batch_approve(
     db: AsyncSession = Depends(get_db),
 ):
     """Batch approve multiple corrections at once."""
-    if not check_secret(x_ingest_secret):
+    if not check_review_credential(x_ingest_secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     approved = 0
@@ -276,7 +307,7 @@ async def approve_correction(
     db: AsyncSession = Depends(get_db),
 ):
     """Approve a correction and update the segment text."""
-    if not check_secret(x_ingest_secret):
+    if not check_review_credential(x_ingest_secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     correction = await db.get(Correction, correction_id)
@@ -311,7 +342,7 @@ async def reject_correction(
     db: AsyncSession = Depends(get_db),
 ):
     """Reject a correction suggestion."""
-    if not check_secret(x_ingest_secret):
+    if not check_review_credential(x_ingest_secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     correction = await db.get(Correction, correction_id)

@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import require_secret
+from app.core.security import require_review
 from app.models.episode import VocabRule
 
 router = APIRouter(prefix="/api/vocab", tags=["vocab"])
@@ -35,7 +35,7 @@ class VocabRuleReview(BaseModel):
     note: str | None = Field(default=None, max_length=300)
 
 
-@router.get("", dependencies=[Depends(require_secret)])
+@router.get("", dependencies=[Depends(require_review)])
 async def list_rules(
     status: str = Query("pending"),
     page: int = Query(1, ge=1),
@@ -101,7 +101,7 @@ async def list_rules(
     }
 
 
-@router.post("", dependencies=[Depends(require_secret)])
+@router.post("", dependencies=[Depends(require_review)])
 async def create_rule(body: VocabRuleCreate, db: AsyncSession = Depends(get_db)):
     """Add a rule directly. Still starts as pending, never auto-applied."""
     if body.wrong_text == body.right_text:
@@ -127,7 +127,7 @@ async def create_rule(body: VocabRuleCreate, db: AsyncSession = Depends(get_db))
     return {"status": "created", "id": rule.id}
 
 
-@router.post("/{rule_id}/review", dependencies=[Depends(require_secret)])
+@router.post("/{rule_id}/review", dependencies=[Depends(require_review)])
 async def review_rule(
     rule_id: int,
     body: VocabRuleReview,

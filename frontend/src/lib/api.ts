@@ -304,6 +304,65 @@ export async function getCorrections(
   return parseJSON(res);
 }
 
+/**
+ * Exchange the admin secret for a short-lived, review-scoped token.
+ *
+ * Only the token is kept after this. The secret is also the ingest secret and
+ * can trigger /api/replace-text, which rewrites all ~2.6M segments; the token
+ * is accepted only by the review screens and expires on its own. That is what
+ * makes it acceptable to persist across pages at all.
+ */
+export async function createAdminSession(
+  secret: string
+): Promise<{ token: string; expires_at: number } | null> {
+  try {
+    const res = await fetchWithRetry(`${API_BASE}/api/corrections/session`, {
+      method: "POST",
+      headers: authHeaders(secret),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+const SESSION_KEY = "guchi-admin-session";
+
+/** sessionStorage, not localStorage: the token dies with the browser tab. */
+export function storeAdminSession(token: string, expiresAt: number): void {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token, expiresAt }));
+  } catch {
+    // Private mode or storage disabled — the session just won't persist.
+  }
+}
+
+export function loadAdminSession(): string | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const { token, expiresAt } = JSON.parse(raw);
+    // Checked here too so an expired token shows the login form rather than
+    // a page full of 403s. The backend is what actually enforces it.
+    if (!token || typeof expiresAt !== "number" || expiresAt * 1000 <= Date.now()) {
+      sessionStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return token;
+  } catch {
+    return null;
+  }
+}
+
+export function clearAdminSession(): void {
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch {
+    // nothing to do
+  }
+}
+
 export async function verifySecret(secret: string): Promise<boolean> {
   try {
     const res = await fetchWithRetry(`${API_BASE}/api/corrections/verify-secret`, {
