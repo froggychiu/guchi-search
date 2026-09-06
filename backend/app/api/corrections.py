@@ -13,7 +13,13 @@ from app.core.security import (
     issue_session_token,
     require_review,
 )
-from app.models.episode import Correction, Segment, Episode, VocabRule
+from app.models.episode import (
+    NON_ATTRIBUTABLE_SUBMITTERS,
+    Correction,
+    Segment,
+    Episode,
+    VocabRule,
+)
 from app.services.indexer import index_episode_segments
 from app.services.vocab import derive_rule
 
@@ -200,9 +206,7 @@ async def list_contributors(
         )
         .where(
             Correction.status == "approved",
-            Correction.submitter_name != "匿名",
-            Correction.submitter_name != "",
-            Correction.submitter_name != "系統自動偵測",
+            Correction.submitter_name.not_in(NON_ATTRIBUTABLE_SUBMITTERS),
         )
         .group_by(Correction.submitter_name)
         .order_by(func.count(Correction.id).desc(), func.min(Correction.created_at).asc())

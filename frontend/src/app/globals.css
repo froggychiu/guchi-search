@@ -526,6 +526,9 @@ code, .mono, time {
 .nrk-episode-header { margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
 .nrk-episode-header h1 { font: var(--text-h1); margin: 8px 0 10px; }
 .nrk-episode-header p { font: var(--text-body-sm); color: var(--ink-soft); line-height: 1.7; }
+.nrk-episode-credits { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; margin-top: 10px; font: var(--text-body-sm); }
+.nrk-episode-credits__label { font: var(--text-label); font-weight: 600; color: var(--ink-faint); letter-spacing: 0.02em; }
+.nrk-episode-credits__name { padding: 2px 8px; border-radius: var(--radius-xs); background: #EDEADF; color: var(--ink-soft); font-size: 12px; }
 .nrk-corrector-bar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--paper-pure); border: 1px solid var(--line); border-radius: var(--radius-sm); margin-bottom: 18px; font: var(--text-body-sm); flex-wrap: wrap; }
 .nrk-corrector-bar input { flex: 0 0 140px; border: 1px solid var(--line); border-radius: var(--radius-xs); padding: 5px 9px; font: var(--text-body-sm); background: var(--paper); color: var(--ink); }
 .nrk-corrector-bar input:focus { outline: 0; border-color: var(--clay); }

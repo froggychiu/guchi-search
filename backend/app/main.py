@@ -161,12 +161,17 @@ async def trigger_maintenance(
     dry_run: bool = False,
     x_ingest_secret: str = Header(None),
 ):
-    """Run maintenance tasks: dedup, reclassify, reindex. Protected by secret token."""
+    """Run maintenance tasks: dedup, reclassify, reindex. Protected by secret token.
+
+    check-indexes is read-only and reports whether a pg_trgm index would be
+    used by this corpus; build-indexes creates it. Both write their findings
+    to the deployment log, like every other action here.
+    """
     if not check_secret(x_ingest_secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
     # "setup" re-applies Meilisearch index settings only — no documents are
     # touched, so it is the cheap way to roll out a settings change.
-    if action not in ("setup", "dedup", "reclassify", "reindex", "retry-errors", "normalize-tw", "apply-vocab", "mine-vocab", "replace-text", "scan-hallucinations"):
+    if action not in ("setup", "dedup", "reclassify", "reindex", "retry-errors", "normalize-tw", "apply-vocab", "mine-vocab", "replace-text", "scan-hallucinations", "check-indexes", "build-indexes"):
         raise HTTPException(status_code=400, detail="Invalid action")
 
     # normalize-tw and apply-vocab rewrite existing transcripts, so both

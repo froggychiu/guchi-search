@@ -57,7 +57,7 @@ handled = set(re.findall(r"if args\.(\w+)\b", source))
 
 # Modifiers, not actions: they change how another flag behaves rather than
 # selecting a job of their own.
-MODIFIERS = {"dry_run"}
+MODIFIERS = {"dry_run", "force"}
 
 print("--- every action flag has a handler ---")
 print(f"       declared: {sorted(declared)}")

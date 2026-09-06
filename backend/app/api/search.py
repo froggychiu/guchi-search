@@ -11,7 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import async_session, get_db
-from app.models.episode import Episode, SearchLog, Segment
+from app.core.readlimit import read_guard, search_guard
+from app.models.episode import (
+    NON_ATTRIBUTABLE_SUBMITTERS,
+    Correction,
+    Episode,
+    SearchLog,
+    Segment,
+)
 
 router = APIRouter(prefix="/api", tags=["search"])
 
@@ -233,7 +240,7 @@ async def _log_search_query(query: str) -> None:
         pass  # analytics best-effort
 
 
-@router.get("/search")
+@router.get("/search", dependencies=[Depends(search_guard)])
 async def search(
     q: SearchQuery,
     show: str | None = Query(None, description="Filter by show name"),
@@ -301,11 +308,19 @@ async def search(
         )
         published = {ep_id: (pub or datetime.min) for ep_id, pub in rows}
 
+    # datetime.min as the floor for a missing date is right — those episodes
+    # sort last — but .timestamp() on it raises outside UTC: a naive datetime
+    # is read as local time, and any positive offset pushes year 1 back into
+    # year 0. Railway runs UTC so production never saw it; anywhere east of
+    # Greenwich, one episode with a NULL published_at 500s the whole search.
+    # Subtraction gives the same ordering without a timezone conversion.
+    def _age_key(ep_id: int) -> float:
+        pub = published.get(ep_id, datetime.min)
+        return (pub - datetime.min).total_seconds()
+
     content_order = sorted(
         content_counts,
-        key=lambda ep_id: (-content_counts[ep_id],
-                           -(published.get(ep_id, datetime.min).timestamp()),
-                           ep_id),
+        key=lambda ep_id: (-content_counts[ep_id], -_age_key(ep_id), ep_id),
     )
     ordered_episode_ids = content_order + [row[0] for row in title_only]
 
@@ -483,7 +498,7 @@ async def search(
     }
 
 
-@router.get("/text-count")
+@router.get("/text-count", dependencies=[Depends(search_guard)])
 async def text_count(
     q: CountQuery,
     db: AsyncSession = Depends(get_db),
@@ -498,7 +513,7 @@ async def text_count(
     return {"query": q, "count": count}
 
 
-@router.get("/popular-keywords")
+@router.get("/popular-keywords", dependencies=[Depends(read_guard)])
 async def popular_keywords(
     days: int = Query(7, ge=1, le=90, description="Look-back window in days"),
     limit: int = Query(10, ge=1, le=30),
@@ -520,7 +535,7 @@ async def popular_keywords(
     }
 
 
-@router.get("/episodes")
+@router.get("/episodes", dependencies=[Depends(read_guard)])
 async def list_episodes(
     show: str | None = Query(None),
     sort: str = Query("newest", description="Sort order: 'newest' or 'oldest'"),
@@ -566,7 +581,7 @@ async def list_episodes(
     }
 
 
-@router.get("/episodes/{episode_id}")
+@router.get("/episodes/{episode_id}", dependencies=[Depends(read_guard)])
 async def get_episode(episode_id: int, db: AsyncSession = Depends(get_db)):
     """Get a single episode with its full transcript."""
     episode = await db.get(Episode, episode_id)
@@ -579,6 +594,24 @@ async def get_episode(episode_id: int, db: AsyncSession = Depends(get_db)):
         .order_by(Segment.start_time)
     )
     segments = result.scalars().all()
+
+    # Who proofread this episode. Only adopted corrections count — a pending
+    # suggestion is a claim, not a contribution, and crediting one would put a
+    # name on the page for an edit a reviewer may still reject.
+    contributor_rows = (await db.execute(
+        select(
+            Correction.submitter_name.label("name"),
+            func.count(Correction.id).label("count"),
+        )
+        .join(Segment, Segment.id == Correction.segment_id)
+        .where(
+            Segment.episode_id == episode_id,
+            Correction.status == "approved",
+            Correction.submitter_name.not_in(NON_ATTRIBUTABLE_SUBMITTERS),
+        )
+        .group_by(Correction.submitter_name)
+        .order_by(func.count(Correction.id).desc(), Correction.submitter_name.asc())
+    )).all()
 
     return {
         "id": episode.id,
@@ -598,10 +631,13 @@ async def get_episode(episode_id: int, db: AsyncSession = Depends(get_db)):
             }
             for seg in segments
         ],
+        "contributors": [
+            {"name": row.name, "count": row.count} for row in contributor_rows
+        ],
     }
 
 
-@router.get("/shows")
+@router.get("/shows", dependencies=[Depends(read_guard)])
 async def list_shows(db: AsyncSession = Depends(get_db)):
     """List all shows with episode counts."""
     result = await db.execute(
@@ -612,7 +648,7 @@ async def list_shows(db: AsyncSession = Depends(get_db)):
     return {"shows": shows}
 
 
-@router.get("/stats")
+@router.get("/stats", dependencies=[Depends(read_guard)])
 async def stats(db: AsyncSession = Depends(get_db)):
     """Get system stats."""
     total_episodes = (await db.execute(select(func.count(Episode.id)))).scalar() or 0

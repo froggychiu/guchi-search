@@ -156,6 +156,9 @@ async def transcribe_episode(session: AsyncSession, episode: Episode):
 async def main():
     parser = argparse.ArgumentParser(description="Ingest podcast episodes")
     parser.add_argument("--setup", action="store_true", help="Setup DB and search index only")
+    parser.add_argument("--check-indexes", action="store_true", help="Report whether a pg_trgm index would help this corpus (read-only)")
+    parser.add_argument("--build-indexes", action="store_true", help="Create the pg_trgm GIN indexes used by /api/search")
+    parser.add_argument("--force", action="store_true", help="With --build-indexes: build even if the trigram check says it would be unused")
     parser.add_argument("--reindex", action="store_true", help="Re-index all done episodes into Meilisearch")
     parser.add_argument("--reclassify", action="store_true", help="Re-classify all episodes into correct shows")
     parser.add_argument("--dedup", action="store_true", help="Remove duplicate episodes (keep first by ID)")
@@ -184,6 +187,24 @@ async def main():
             print("[OK] Meilisearch index configured.")
         except Exception as e:
             print(f"[WARN] Meilisearch setup: {e}")
+        return
+
+    if args.check_indexes:
+        from app.scripts.indexes import benchmark, diagnose, print_report
+
+        report = await diagnose(engine)
+        after = await benchmark(engine)
+        print_report(report, after)
+        return
+
+    if args.build_indexes:
+        from app.scripts.indexes import benchmark, build, print_report
+
+        print("[...] Checking whether trigram indexes would be used, then building.")
+        print("      CREATE INDEX CONCURRENTLY on ~2.6M rows takes several minutes.")
+        report = await build(engine, force=args.force)
+        after = await benchmark(engine) if report.get("built") else None
+        print_report(report, after)
         return
 
     if args.reclassify:

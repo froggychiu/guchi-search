@@ -116,6 +116,14 @@ class VocabRule(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+# Submitter names that stand for nobody in particular: the default when a
+# proofreader leaves the field blank, and the tag ingest.py's hallucination
+# scanner files its own edits under. Both are excluded wherever corrections are
+# attributed to people — the leaderboard and the per-episode credit line —
+# because "匿名" is many different people sharing one label.
+NON_ATTRIBUTABLE_SUBMITTERS = ("匿名", "", "系統自動偵測")
+
+
 class Correction(Base):
     __tablename__ = "corrections"
 

@@ -1,9 +1,52 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site";
+
+// Deliberately no episode count: the nightly ingest cron adds episodes, and a
+// number baked into every page's meta description would be wrong within weeks.
+const SITE_DESCRIPTION =
+  "全文檢索呱吉頻道（新資料夾、直播）歷年全部集數的 Podcast 逐字稿，逐句可搜尋，每一句都能跳播回原始音檔對照。";
 
 export const metadata: Metadata = {
-  title: "新資料庫",
-  description: "全文檢索呱吉頻道的 Podcast 逐字稿",
+  // Without metadataBase, every relative canonical/OG URL below resolves
+  // against localhost in the build output.
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    // Episode pages set only their own title; this appends the site name so
+    // all 786 of them stop sharing one indistinguishable heading.
+    template: `%s — ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    locale: "zh_TW",
+  },
+  twitter: {
+    card: "summary",
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      // Defaults truncate the snippet and forbid large previews, which for a
+      // transcript archive is the difference between a useful search result
+      // and a title with nothing under it.
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
+  },
 };
 
 export default function RootLayout({

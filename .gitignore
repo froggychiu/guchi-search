@@ -16,6 +16,9 @@ out/
 # Tooling artifacts
 .playwright-mcp/
 
+# Throwaway SQLite files the test scripts create and delete on each run.
+backend/tests/*.db
+
 # Operator handbook — contains the plaintext ingest secret and Railway
 # tokens, so it stays local. See qa-reports/dev-handoff-20260429.md 第 0 章.
 HANDOFF.md

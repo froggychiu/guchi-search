@@ -32,6 +32,28 @@ class Settings(BaseSettings):
     # Ingest cron secret (for triggering ingest via API)
     ingest_secret: str = ""
 
+    # Shared with the frontend's server-side rendering only, so its calls are
+    # not rate limited as if they were one very busy member of the public —
+    # every server-rendered page arrives from a single container IP. Distinct
+    # from ingest_secret: this grants nothing except a limiter bypass on
+    # read-only endpoints. Empty (the default) disables the bypass entirely.
+    internal_token: str = ""
+
+    # Public read limits, per minute. Settings rather than constants because
+    # the right ceiling depends on traffic nobody has seen yet — an MCP
+    # endpoint's load is not predictable from the website's — and retuning
+    # should not need a code deploy.
+    #
+    # Search is the expensive tier: each call is a sequential scan of ~2.6M
+    # segments, ~0.4s of database CPU. The global ceiling is sized so sustained
+    # search load stays near one core; the per-client number is set well above
+    # a human paging through results (the frontend issues one search per page)
+    # so that normal use never sees a 429.
+    rate_limit_search_per_client: int = 90
+    rate_limit_search_global: int = 150
+    rate_limit_read_per_client: int = 300
+    rate_limit_read_global: int = 1500
+
     # CORS — defaults are explicit so prod can never silently fall back to "*".
     # Override in Railway with GUCHI_CORS_ORIGINS='["https://sear.newfolderla.com"]'
     cors_origins: list[str] = [

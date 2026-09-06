@@ -1,10 +1,10 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 /**
  * Fetch wrapper with automatic retry for cold-start scenarios.
  * Retries up to 3 times with exponential backoff (1s, 2s, 4s).
  */
-async function fetchWithRetry(
+export async function fetchWithRetry(
   url: string,
   options?: RequestInit,
   retries = 3
@@ -103,6 +103,13 @@ export interface EpisodeSummary {
   transcription_status: string;
 }
 
+/** A named proofreader credited on an episode page. */
+export interface EpisodeContributor {
+  name: string;
+  /** Adopted corrections this person made in this episode. */
+  count: number;
+}
+
 export interface EpisodeDetail extends EpisodeSummary {
   audio_url: string | null;
   segments: {
@@ -112,6 +119,12 @@ export interface EpisodeDetail extends EpisodeSummary {
     end_time: number;
     text: string;
   }[];
+  /**
+   * Named proofreaders whose corrections were adopted, most corrections
+   * first. Optional because the frontend and backend deploy separately — a
+   * page served before the backend ships this field must still render.
+   */
+  contributors?: EpisodeContributor[];
 }
 
 export interface ShowInfo {
