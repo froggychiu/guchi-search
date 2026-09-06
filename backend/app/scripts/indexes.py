@@ -46,6 +46,23 @@ def _is_postgres(engine) -> bool:
     return engine.dialect.name == "postgresql"
 
 
+async def _probe(conn, report: dict, sql: str):
+    """Run one read-only probe, recording failures instead of raising.
+
+    A diagnostic that dies on its first unsupported query is worse than no
+    diagnostic: `SHOW lc_ctype` is gone in PostgreSQL 16 and took the entire
+    report with it, including the show_trgm() answer that is the only reason
+    this command exists. Every probe is now individually survivable.
+    """
+    try:
+        return (await conn.execute(text(sql))).scalar()
+    except Exception as e:
+        report.setdefault("notes", []).append(
+            f"probe failed ({sql.split()[0]} ...): {type(e).__name__}: {e}"
+        )
+        return None
+
+
 async def diagnose(engine) -> dict:
     """Report whether pg_trgm can usefully index this corpus.
 
@@ -58,10 +75,23 @@ async def diagnose(engine) -> dict:
         return report
 
     async with engine.connect() as conn:
-        version = (await conn.execute(text("SHOW server_version"))).scalar()
-        ctype = (await conn.execute(text("SHOW lc_ctype"))).scalar()
-        report["server_version"] = version
+        report["server_version"] = await _probe(conn, report, "SHOW server_version")
+
+        # NOT `SHOW lc_ctype`. That GUC was removed in PostgreSQL 16 — the
+        # locale is now only a property of the database row — so asking for it
+        # raises UndefinedObjectError on any modern server and took the whole
+        # report down with it. pg_database works on every version.
+        ctype = await _probe(
+            conn,
+            report,
+            "SELECT datctype FROM pg_database WHERE datname = current_database()",
+        )
         report["lc_ctype"] = ctype
+        report["lc_collate"] = await _probe(
+            conn,
+            report,
+            "SELECT datcollate FROM pg_database WHERE datname = current_database()",
+        )
 
         available = (
             await conn.execute(
@@ -98,10 +128,18 @@ async def diagnose(engine) -> dict:
     async with engine.connect() as conn:
         # Does Chinese text produce trigrams on this database at all?
         trigrams: dict[str, list[str]] = {}
+        probe_failed = False
         for term in PROBE_TERMS:
-            rows = (
-                await conn.execute(text("SELECT show_trgm(:t)"), {"t": term})
-            ).scalar()
+            try:
+                rows = (
+                    await conn.execute(text("SELECT show_trgm(:t)"), {"t": term})
+                ).scalar()
+            except Exception as e:
+                probe_failed = True
+                report.setdefault("notes", []).append(
+                    f"show_trgm({term}) failed: {type(e).__name__}: {e}"
+                )
+                rows = None
             trigrams[term] = list(rows or [])
         report["trigrams"] = trigrams
 
@@ -109,9 +147,13 @@ async def diagnose(engine) -> dict:
         # trigram. Empty output means the locale does not treat these
         # characters as word constituents and the index would never be probed.
         usable_terms = [t for t, g in trigrams.items() if g]
-        report["usable"] = len(usable_terms) == len(PROBE_TERMS)
+        # A failed probe is "unknown", not "unusable" — the difference decides
+        # whether the answer is "do not build" or "this check is broken".
+        report["usable"] = (
+            not probe_failed and len(usable_terms) == len(PROBE_TERMS)
+        )
 
-        if not report["usable"]:
+        if not report["usable"] and not probe_failed:
             dead = [t for t, g in trigrams.items() if not g]
             report["notes"].append(
                 f"show_trgm() returns nothing for {', '.join(dead)} — this database's "
@@ -121,7 +163,7 @@ async def diagnose(engine) -> dict:
 
         # Single characters cannot produce a complete trigram, so one-character
         # searches keep sequential-scanning no matter what is built.
-        one_char = (await conn.execute(text("SELECT show_trgm('吉')"))).scalar()
+        one_char = await _probe(conn, report, "SELECT show_trgm('吉')")
         report["single_char_trigrams"] = list(one_char or [])
 
         # Size context: a GIN trgm index over this much text is not small, and
@@ -138,27 +180,35 @@ async def diagnose(engine) -> dict:
 
         # A CREATE INDEX CONCURRENTLY that failed midway leaves an unusable
         # index behind that still costs writes. Surface it.
-        invalid = (
-            await conn.execute(
-                text(
-                    "SELECT c.relname FROM pg_class c "
-                    "JOIN pg_index i ON i.indexrelid = c.oid "
-                    "WHERE NOT i.indisvalid"
+        try:
+            invalid = (
+                await conn.execute(
+                    text(
+                        "SELECT c.relname FROM pg_class c "
+                        "JOIN pg_index i ON i.indexrelid = c.oid "
+                        "WHERE NOT i.indisvalid"
+                    )
                 )
-            )
-        ).scalars().all()
-        report["invalid_indexes"] = list(invalid)
+            ).scalars().all()
+            report["invalid_indexes"] = list(invalid)
+        except Exception as e:
+            report.setdefault("notes", []).append(f"invalid-index scan failed: {e}")
+            report["invalid_indexes"] = []
 
-        existing = (
-            await conn.execute(
-                text(
-                    "SELECT indexname FROM pg_indexes "
-                    "WHERE indexname = ANY(:names)"
-                ),
-                {"names": [name for name, _, _ in TRGM_INDEXES]},
-            )
-        ).scalars().all()
-        report["existing_indexes"] = list(existing)
+        try:
+            existing = (
+                await conn.execute(
+                    text(
+                        "SELECT indexname FROM pg_indexes "
+                        "WHERE indexname = ANY(:names)"
+                    ),
+                    {"names": [name for name, _, _ in TRGM_INDEXES]},
+                )
+            ).scalars().all()
+            report["existing_indexes"] = list(existing)
+        except Exception as e:
+            report.setdefault("notes", []).append(f"existing-index scan failed: {e}")
+            report["existing_indexes"] = []
 
     return report
 
@@ -254,6 +304,7 @@ def print_report(report: dict, after: dict | None = None) -> None:
     for key in (
         "server_version",
         "lc_ctype",
+        "lc_collate",
         "pg_trgm_available",
         "pg_trgm_installed",
         "segments_size",
