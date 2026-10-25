@@ -5,6 +5,7 @@ Usage:
     python -m app.scripts.ingest              # Ingest all new episodes
     python -m app.scripts.ingest --episode-id 5  # Re-transcribe a specific episode
     python -m app.scripts.ingest --setup      # Setup DB tables + search index only
+    python -m app.scripts.ingest --proofread --limit 5   # AI-proofread 5 not-yet-proofread episodes
 """
 
 import argparse
@@ -29,6 +30,47 @@ from app.services.vocab import (
     refresh_corpus_counts,
 )
 from app.models.episode import Correction
+
+# Episodes per --proofread run when no --limit is given. A backfill of the
+# whole corpus is a cost decision (see services/proofreader.py), so asking
+# for it has to be explicit.
+PROOFREAD_DEFAULT_LIMIT = 5
+
+
+async def proofread(session: AsyncSession, episode: Episode, dry_run: bool = False) -> bool:
+    """AI-proofread one episode and report. False if it could not run at all."""
+    from app.services.proofreader import openai_complete, proofread_episode
+
+    if not settings.openai_api_key:
+        print("  [proofread] skipped: GUCHI_OPENAI_API_KEY is not set.")
+        return False
+
+    print(f"  [proofread] {episode.title}")
+    result = await proofread_episode(
+        session, episode,
+        openai_complete(settings.openai_api_key),
+        settings.proofread_model, settings.proofread_verify_model,
+        auto_approve=settings.proofread_auto_approve,
+        dry_run=dry_run,
+    )
+    usage = result.usage
+    if usage.failed:
+        print(f"  [proofread] {usage.failed}/{usage.calls} API calls failed, e.g. {usage.errors[0]}")
+
+    if dry_run:
+        for f in result.fixes:
+            print(f"    [{f.verdict:>7}] #{f.index} {f.wrong} -> {f.right}  ({f.verdict_why or f.why})")
+        print(f"  [proofread] dry run: {len(result.fixes)} fixes proposed, nothing written.")
+        return True
+
+    print(f"  [proofread] applied to {result.applied} segments, {result.pending} left for review, "
+          f"{result.rejected} rejected by the verifier, {result.skipped} skipped (human edit pending).")
+    if result.applied:
+        try:
+            await index_episode_segments(session, episode.id)
+        except Exception as e:
+            print(f"  [WARN] Re-indexing after proofread failed: {e}")
+    return True
 
 
 async def setup_database(engine):
@@ -146,6 +188,15 @@ async def transcribe_episode(session: AsyncSession, episode: Episode):
     except Exception as e:
         print(f"  [WARN] Indexing failed (can retry later): {e}")
 
+    # A proofreading failure leaves the transcript as Whisper wrote it, which
+    # is where it was before this step existed. The episode stays unproofread
+    # and `--proofread` picks it up later.
+    try:
+        await proofread(session, episode)
+    except Exception as e:
+        await session.rollback()
+        print(f"  [WARN] AI proofreading failed (episode kept, can retry with --proofread): {e}")
+
     # Clean up audio file
     try:
         os.remove(audio_path)
@@ -167,7 +218,9 @@ async def main():
     parser.add_argument("--mine-vocab", action="store_true", help="Propose glossary rules from repeated approved corrections")
     parser.add_argument("--min-evidence", type=int, default=None, help="With --mine-vocab: how many matching corrections are required (default 3)")
     parser.add_argument("--normalize-tw", action="store_true", help="Repair non-Taiwan Traditional variants (爲->為, 喫->吃, 纔->才 ...) in existing segments")
-    parser.add_argument("--dry-run", action="store_true", help="With --normalize-tw / --apply-vocab: report what would change without writing")
+    parser.add_argument("--dry-run", action="store_true", help="With --normalize-tw / --apply-vocab / --proofread: report what would change without writing")
+    parser.add_argument("--proofread", action="store_true", help="AI-proofread episodes not yet proofread (--limit, default 5; or --episode-id; --dry-run to preview)")
+    parser.add_argument("--revert-proofread", action="store_true", help="With --episode-id: undo AI proofreading on that episode")
     parser.add_argument("--replace-text", nargs=2, metavar=("OLD", "NEW"), help="Replace text in all segments")
     parser.add_argument("--scan-hallucinations", action="store_true", help="Scan existing transcripts for hallucinations and create correction entries")
     parser.add_argument("--episode-id", type=int, help="Transcribe a specific episode")
@@ -384,6 +437,52 @@ async def main():
                     print(f"  [FLAG] {ep.title} @ {seg.start_time:.0f}s: {seg.text[:50]}")
             await session.commit()
             print(f"[OK] Flagged {total_flagged} segments as potential hallucinations.")
+        return
+
+    if args.proofread:
+        async with session_factory() as session:
+            if args.episode_id:
+                episode = await session.get(Episode, args.episode_id)
+                if not episode:
+                    print(f"[ERROR] Episode {args.episode_id} not found.")
+                    return
+                episodes = [episode]
+            else:
+                query = (
+                    select(Episode)
+                    .where(Episode.transcription_status == "done",
+                           Episode.proofread_at.is_(None))
+                    # Newest first: recent episodes are the ones people read.
+                    .order_by(Episode.published_at.desc())
+                    .limit(args.limit or PROOFREAD_DEFAULT_LIMIT)
+                )
+                if args.show:
+                    query = query.where(Episode.show == args.show)
+                episodes = (await session.execute(query)).scalars().all()
+
+            print(f"[...] AI-proofreading {len(episodes)} episodes"
+                  f"{' (dry run)' if args.dry_run else ''}.")
+            for i, episode in enumerate(episodes, 1):
+                print(f"\n--- [{i}/{len(episodes)}] ---")
+                if not await proofread(session, episode, dry_run=args.dry_run):
+                    return
+        print("\n[DONE] Proofreading complete.")
+        return
+
+    if args.revert_proofread:
+        if not args.episode_id:
+            print("[ERROR] --revert-proofread needs --episode-id.")
+            return
+        from app.services.proofreader import revert_episode
+
+        async with session_factory() as session:
+            reverted, left_alone = await revert_episode(session, args.episode_id)
+            print(f"[OK] Restored {reverted} segments to their pre-proofreading text.")
+            if left_alone:
+                print(f"[WARN] {left_alone} segments were edited by hand afterwards "
+                      f"and were left as they are.")
+            if reverted:
+                await index_episode_segments(session, args.episode_id)
         return
 
     if args.replace_text:

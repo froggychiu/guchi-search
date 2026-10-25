@@ -19,6 +19,9 @@ class Episode(Base):
     transcription_status: Mapped[str] = mapped_column(
         String(20), default="pending"
     )  # pending, processing, done, error
+    # When AI proofreading last ran over this episode (services/proofreader.py).
+    # Null means never — the backfill picks those up oldest first.
+    proofread_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     segments: Mapped[list["Segment"]] = relationship(back_populates="episode", cascade="all, delete-orphan")
 
@@ -116,12 +119,21 @@ class VocabRule(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+# Submitters that are software, not people: ingest.py's hallucination scanner
+# and the AI proofreader (services/proofreader.py). Their corrections never
+# count as evidence for a glossary rule — the proofreader proposes the same fix
+# on every line it appears, which would look like many independent
+# proofreaders agreeing — and never count toward the public submission limit,
+# which they would otherwise exhaust in one ingest run.
+AI_PROOFREADER = "AI校稿"
+AUTOMATED_SUBMITTERS = ("系統自動偵測", AI_PROOFREADER)
+
 # Submitter names that stand for nobody in particular: the default when a
-# proofreader leaves the field blank, and the tag ingest.py's hallucination
-# scanner files its own edits under. Both are excluded wherever corrections are
-# attributed to people — the leaderboard and the per-episode credit line —
-# because "匿名" is many different people sharing one label.
-NON_ATTRIBUTABLE_SUBMITTERS = ("匿名", "", "系統自動偵測")
+# proofreader leaves the field blank, plus the automated submitters above.
+# All are excluded wherever corrections are attributed to people — the
+# leaderboard and the per-episode credit line — because "匿名" is many
+# different people sharing one label.
+NON_ATTRIBUTABLE_SUBMITTERS = ("匿名", "", *AUTOMATED_SUBMITTERS)
 
 
 class Correction(Base):
@@ -135,5 +147,9 @@ class Correction(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, approved, rejected
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # What changed and why, for corrections filed by software — "旁客→龐克
+    # （同音錯字）". A whole-sentence diff is slow to read when the change is
+    # two characters; this is what lets a reviewer get through the AI queue.
+    note: Mapped[str | None] = mapped_column(String(300), nullable=True)
 
     segment: Mapped["Segment"] = relationship(back_populates="corrections")

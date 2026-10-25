@@ -29,3 +29,5 @@ openai>=1.58.1
 # needed; greenlet is what SQLAlchemy's async layer runs on.
 aiosqlite>=0.20.0
 greenlet>=3.1.1
+# The AI proofreader's homophone guard (services/proofreader.py).
+pypinyin>=0.55.0

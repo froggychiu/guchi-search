@@ -78,6 +78,14 @@ check("token FAILS the destructive check", check_secret(token), False)
 check("secret passes the review check", check_review_credential(SECRET), True)
 check("token passes the review check", check_review_credential(token), True)
 
+print("\n--- non-ASCII input is a wrong credential, not a crash ---")
+# compare_digest raises on non-ASCII str; that escaped as a 500 when a curl
+# command was run with the placeholder 你的金鑰 still in it.
+check("secret check", check_secret("你的金鑰"), False)
+check("review check", check_review_credential("你的金鑰"), False)
+check("token with a non-ASCII signature",
+      check_session_token(f"{prefix}.{scope}.{exp}.簽章"), False)
+
 
 async def endpoint_checks():
     async with engine.begin() as conn:
@@ -96,6 +104,16 @@ async def endpoint_checks():
         r = await c.post("/api/corrections/session",
                          headers={"X-Ingest-Secret": "wrong"})
         check("a wrong secret does not", r.status_code, 403)
+
+        # Sent as raw UTF-8, the way curl sends it. Starlette decodes header
+        # bytes as latin-1, so the server sees non-ASCII characters either way.
+        placeholder = {"X-Ingest-Secret": "你的金鑰".encode("utf-8")}
+        r = await c.post("/api/corrections/session", headers=placeholder)
+        check("a non-ASCII secret is a 403, not a 500", r.status_code, 403)
+        r = await c.post("/api/maintenance/setup", headers=placeholder)
+        check("...on the maintenance endpoints too", r.status_code, 403)
+        r = await c.get("/api/corrections?status=pending", headers=placeholder)
+        check("...and on the review screens", r.status_code, 403)
 
         # A token minting further tokens would renew itself forever, which is
         # the opposite of what an expiry is for.

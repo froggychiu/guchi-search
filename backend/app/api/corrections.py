@@ -14,6 +14,8 @@ from app.core.security import (
     require_review,
 )
 from app.models.episode import (
+    AI_PROOFREADER,
+    AUTOMATED_SUBMITTERS,
     NON_ATTRIBUTABLE_SUBMITTERS,
     Correction,
     Segment,
@@ -113,9 +115,12 @@ async def submit_correction(
 
     # Bounds how fast the queue can grow regardless of who is filing. Unlike
     # the per-client window this cannot be sidestepped with a spoofed header.
+    # Only public submissions count: one ingest run files hundreds of AI
+    # proofreading corrections, which would otherwise shut the form for an hour.
     recent = (await db.execute(
         select(func.count(Correction.id)).where(
-            Correction.created_at >= datetime.utcnow() - timedelta(hours=1)
+            Correction.created_at >= datetime.utcnow() - timedelta(hours=1),
+            Correction.submitter_name.not_in(AUTOMATED_SUBMITTERS),
         )
     )).scalar() or 0
     if recent >= GLOBAL_HOURLY_LIMIT:
@@ -228,17 +233,38 @@ async def list_contributors(
 @router.get("", dependencies=[Depends(require_review)])
 async def list_corrections(
     status: str = Query("pending"),
+    source: str = Query("all", pattern="^(all|human|ai)$"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    """List correction suggestions (for admin review). Admin-only."""
-    count_query = select(func.count(Correction.id)).where(Correction.status == status)
-    total = (await db.execute(count_query)).scalar() or 0
+    """List correction suggestions (for admin review). Admin-only.
+
+    `source` splits the queue. AI proofreading files corrections by the
+    hundred per episode; mixed in newest-first, they would bury every
+    submission a person made. `counts` carries both sides so the reviewer can
+    see the other queue is there without switching to it.
+    """
+    is_ai = Correction.submitter_name == AI_PROOFREADER
+    where = [Correction.status == status]
+    if source == "ai":
+        where.append(is_ai)
+    elif source == "human":
+        where.append(~is_ai)
+
+    total = (await db.execute(
+        select(func.count(Correction.id)).where(*where)
+    )).scalar() or 0
+    ai_total = (await db.execute(
+        select(func.count(Correction.id)).where(Correction.status == status, is_ai)
+    )).scalar() or 0
+    all_total = (await db.execute(
+        select(func.count(Correction.id)).where(Correction.status == status)
+    )).scalar() or 0
 
     query = (
         select(Correction)
-        .where(Correction.status == status)
+        .where(*where)
         .order_by(Correction.created_at.desc())
         .offset((page - 1) * per_page)
         .limit(per_page)
@@ -259,11 +285,18 @@ async def list_corrections(
             "original_text": c.original_text,
             "suggested_text": c.suggested_text,
             "submitter_name": c.submitter_name,
+            "note": c.note,
             "status": c.status,
             "created_at": c.created_at.isoformat(),
         })
 
-    return {"total": total, "page": page, "per_page": per_page, "corrections": items}
+    return {
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "counts": {"all": all_total, "ai": ai_total, "human": all_total - ai_total},
+        "corrections": items,
+    }
 
 
 @router.post("/batch-approve")

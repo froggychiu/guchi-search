@@ -43,6 +43,19 @@ _TOKEN_PREFIX = "s1"
 _TOKEN_SCOPE = "review"
 
 
+def constant_time_equals(provided: str, expected: str) -> bool:
+    """Constant-time string comparison that cannot raise.
+
+    `secrets.compare_digest` on two str raises TypeError when either holds a
+    non-ASCII character, and headers arrive as whatever the caller sent — a
+    curl command with the placeholder 你的金鑰 still in it was enough. The
+    TypeError escaped as a 500, telling the caller nothing true and hiding the
+    real answer, which is 403. Comparing the UTF-8 bytes keeps the same
+    constant-time property for every input.
+    """
+    return secrets.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
+
+
 def check_secret(provided: str | None) -> bool:
     """True only for the raw secret. Session tokens are NOT accepted.
 
@@ -52,7 +65,7 @@ def check_secret(provided: str | None) -> bool:
     """
     if not settings.ingest_secret or not provided:
         return False
-    return secrets.compare_digest(provided, settings.ingest_secret)
+    return constant_time_equals(provided, settings.ingest_secret)
 
 
 def _sign(payload: str) -> str:
@@ -86,7 +99,7 @@ def check_session_token(provided: str | None) -> bool:
     # Signature first: an expired token and a forged one should be
     # indistinguishable from outside.
     payload = f"{prefix}.{scope}.{expires_raw}"
-    if not secrets.compare_digest(signature, _sign(payload)):
+    if not constant_time_equals(signature, _sign(payload)):
         return False
     return expires_at > int(time.time())
 

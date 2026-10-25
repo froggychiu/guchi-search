@@ -11,6 +11,7 @@ import {
   batchApprove,
   formatTime,
   type CorrectionItem,
+  type CorrectionSource,
 } from "@/lib/api";
 import AdminTabs from "@/components/AdminTabs";
 
@@ -23,6 +24,10 @@ export default function AdminPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState("pending");
+  // AI proofreading files its corrections under one name; splitting it out
+  // keeps a person's submission from scrolling away under them.
+  const [source, setSource] = useState<CorrectionSource>("all");
+  const [counts, setCounts] = useState<Record<CorrectionSource, number> | null>(null);
   const [actionMsg, setActionMsg] = useState<{ id: number; msg: string; ok: boolean } | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchLoading, setBatchLoading] = useState(false);
@@ -62,9 +67,10 @@ export default function AdminPage() {
       // The secret is required: listing corrections is admin-only (SEC-12).
       // Omitting it 403s, and swallowing that error is what made this page
       // report "共 0 筆" while 2,748 corrections sat waiting.
-      const data = await getCorrections(status, p, secret);
+      const data = await getCorrections(status, p, secret, source);
       setCorrections(data.corrections);
       setTotal(data.total);
+      setCounts(data.counts ?? null);
       setPage(p);
       setSelected(new Set());
       setLoadError("");
@@ -88,7 +94,7 @@ export default function AdminPage() {
     if (authenticated) {
       loadCorrections(1, filter);
     }
-  }, [authenticated, filter]);
+  }, [authenticated, filter, source]);
 
   async function handleReview(id: number, action: "approve" | "reject") {
     try {
@@ -189,6 +195,25 @@ export default function AdminPage() {
         </div>
       </div>
 
+      <div className="nrk-chips" style={{ marginTop: 0 }}>
+        {(["all", "human", "ai"] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => setSource(s)}
+            className={`nrk-chip${source === s ? " nrk-chip--active" : ""}`}
+          >
+            {{ all: "全部", human: "人工", ai: "AI校稿" }[s]}
+            {counts && ` ${counts[s].toLocaleString()}`}
+          </button>
+        ))}
+      </div>
+      {source === "ai" && filter === "pending" && (
+        <p style={{ marginBottom: 12 }}>
+          這裡只有 AI 複審「不確定」的修改。複審通過的已經自動套用，
+          可在「已批准」查看；被否決的在「已拒絕」。
+        </p>
+      )}
+
       <div className="nrk-admin-toolbar">
         <span>共 {total.toLocaleString()} 筆</span>
         {filter === "pending" && corrections.length > 0 && (
@@ -274,6 +299,8 @@ export default function AdminPage() {
                     {c.submitter_name} · {new Date(c.created_at).toLocaleDateString("zh-TW")}
                   </span>
                 </div>
+
+                {c.note && <p className="nrk-mono" style={{ margin: "4px 0 8px" }}>{c.note}</p>}
 
                 <div className="nrk-diff">
                   <div className="nrk-diff__col nrk-diff__col--before">

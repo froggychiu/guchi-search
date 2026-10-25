@@ -24,12 +24,11 @@ container today; if that is ever scaled out, each replica enforces its own
 share. See core/ratelimit.py.
 """
 
-import secrets
-
 from fastapi import HTTPException, Request
 
 from app.core.config import settings
 from app.core.ratelimit import SlidingWindow, client_key
+from app.core.security import constant_time_equals
 
 # Limits come from settings; see config.py for how the numbers were chosen.
 _search_per_client = SlidingWindow(settings.rate_limit_search_per_client, 60)
@@ -56,7 +55,7 @@ def _is_internal(request: Request) -> bool:
     provided = request.headers.get("x-internal-token")
     if not provided:
         return False
-    return secrets.compare_digest(provided, token)
+    return constant_time_equals(provided, token)
 
 
 def _enforce(request: Request, per_client: SlidingWindow, glob: SlidingWindow) -> None:

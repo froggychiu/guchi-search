@@ -138,6 +138,12 @@ async def run():
             429,
         )
 
+        check(
+            "a non-ASCII token is treated as public, not a 500",
+            (await search(me, **{"x-internal-token": "內部".encode("utf-8")})).status_code,
+            429,
+        )
+
         settings.internal_token = ""
         check(
             "and the bypass is off when no token is configured",
