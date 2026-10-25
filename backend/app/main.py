@@ -3,7 +3,7 @@ import os
 import sys
 from contextlib import asynccontextmanager
 
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -159,6 +159,7 @@ async def trigger_maintenance(
     action: str,
     background_tasks: BackgroundTasks,
     dry_run: bool = False,
+    limit: int | None = Query(None, ge=1, le=1000),
     x_ingest_secret: str = Header(None),
 ):
     """Run maintenance tasks: dedup, reclassify, reindex. Protected by secret token.
@@ -171,16 +172,20 @@ async def trigger_maintenance(
         raise HTTPException(status_code=403, detail="Invalid secret")
     # "setup" re-applies Meilisearch index settings only — no documents are
     # touched, so it is the cheap way to roll out a settings change.
-    if action not in ("setup", "dedup", "reclassify", "reindex", "retry-errors", "normalize-tw", "apply-vocab", "mine-vocab", "replace-text", "scan-hallucinations", "check-indexes", "build-indexes"):
+    if action not in ("setup", "dedup", "reclassify", "reindex", "retry-errors", "normalize-tw", "apply-vocab", "mine-vocab", "replace-text", "scan-hallucinations", "check-indexes", "build-indexes", "proofread"):
         raise HTTPException(status_code=400, detail="Invalid action")
 
     # normalize-tw and apply-vocab rewrite existing transcripts, so both
     # support a preview pass before committing to it. Results
     # land in the deployment log rather than the response — this is a
     # background task, it cannot report back.
-    extra = ["--dry-run"] if dry_run and action in ("normalize-tw", "apply-vocab") else None
+    extra = ["--dry-run"] if dry_run and action in ("normalize-tw", "apply-vocab", "proofread") else []
+    # proofread spends API money per episode, so how many is always stated:
+    # the CLI falls back to a small default rather than the whole corpus.
+    if action == "proofread" and limit:
+        extra += ["--limit", str(limit)]
     background_tasks.add_task(_run_maintenance, action, extra)
-    return {"status": f"{action} started{' (dry run)' if extra else ''}"}
+    return {"status": f"{action} started{' (dry run)' if '--dry-run' in extra else ''}"}
 
 
 class ReplaceTextRequest(BaseModel):

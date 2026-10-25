@@ -16,6 +16,16 @@ class Settings(BaseSettings):
     # Groq (Whisper) - primary
     groq_api_key: str = ""
 
+    # AI proofreading (services/proofreader.py). Runs on the OpenAI key above;
+    # without one, ingest skips it. Models are settings so a cheaper or better
+    # one can be tried without a deploy. 2026-10-25 measurement: about
+    # US$0.24 per hour of audio for both passes together.
+    proofread_model: str = "gpt-5.4-mini"
+    proofread_verify_model: str = "gpt-5.4"
+    # Whether fixes the verifier approves are applied straight away (True) or
+    # wait in the review queue with the unsure ones (False).
+    proofread_auto_approve: bool = True
+
     # RSS Feed
     rss_feed_url: str = "https://feeds.soundon.fm/podcasts/ecd31076-d12d-46dc-ba11-32d24b41cca5.xml"
 

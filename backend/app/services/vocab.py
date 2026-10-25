@@ -11,7 +11,7 @@ from datetime import datetime
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.episode import Correction, Segment, VocabRule
+from app.models.episode import AUTOMATED_SUBMITTERS, Correction, Segment, VocabRule
 
 # A proposed rule wider than this is a rewrite of the sentence, not a glossary
 # entry, and would be both unsafe and useless to apply everywhere.
@@ -21,10 +21,6 @@ MAX_RULE_LEN = 20
 # before it is proposed as a rule. Two could be one person fixing the same
 # episode twice; three across the corpus is a pattern.
 MIN_EVIDENCE = 3
-
-# The hallucination scanner files corrections under this name. Its edits are
-# "（疑似幻覺，建議刪除）", which must never become a glossary rule.
-BOT_SUBMITTER = "系統自動偵測"
 
 
 async def load_active_rules(db: AsyncSession) -> list[tuple[str, str]]:
@@ -82,7 +78,10 @@ async def mine_rules_from_corrections(
         select(Correction.original_text, Correction.suggested_text,
                Correction.submitter_name)
         .where(Correction.status == "approved",
-               Correction.submitter_name != BOT_SUBMITTER)
+               # Software is not independent evidence: the hallucination
+               # scanner's edits are not substitutions at all, and the AI
+               # proofreader repeats one fix on every line it appears.
+               Correction.submitter_name.not_in(AUTOMATED_SUBMITTERS))
     )).all()
 
     evidence: dict[tuple[str, str], int] = {}

@@ -212,9 +212,14 @@ export interface CorrectionItem {
   original_text: string;
   suggested_text: string;
   submitter_name: string;
+  // Set on corrections filed by software: what changed and why ("旁客→龐克（同音錯字）").
+  note: string | null;
   status: string;
   created_at: string;
 }
+
+/** Who filed a correction: "ai" is the AI proofreader, "human" everyone else. */
+export type CorrectionSource = "all" | "human" | "ai";
 
 export interface CorrectionResult {
   status: string;
@@ -308,9 +313,16 @@ function authHeaders(secret: string): Record<string, string> {
 export async function getCorrections(
   status = "pending",
   page = 1,
-  secret = ""
-): Promise<{ total: number; page: number; per_page: number; corrections: CorrectionItem[] }> {
-  const params = new URLSearchParams({ status, page: String(page) });
+  secret = "",
+  source: CorrectionSource = "all"
+): Promise<{
+  total: number;
+  page: number;
+  per_page: number;
+  counts: Record<CorrectionSource, number>;
+  corrections: CorrectionItem[];
+}> {
+  const params = new URLSearchParams({ status, page: String(page), source });
   const res = await fetchWithRetry(`${API_BASE}/api/corrections?${params}`, {
     headers: authHeaders(secret),
   });
