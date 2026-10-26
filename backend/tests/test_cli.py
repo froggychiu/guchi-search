@@ -76,6 +76,33 @@ try:
 except Exception as e:  # pragma: no cover
     check("import succeeds", f"{type(e).__name__}: {e}", True)
 
+print("\n--- a run says which code it is ---")
+import contextlib  # noqa: E402
+import io  # noqa: E402
+
+
+def version_line(**env):
+    saved = {k: os.environ.pop(k, None) for k in ("RAILWAY_GIT_COMMIT_SHA", "RAILWAY_ENVIRONMENT")}
+    os.environ.update(env)
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            ingest_module.report_code_version()
+    finally:
+        for k in ("RAILWAY_GIT_COMMIT_SHA", "RAILWAY_ENVIRONMENT"):
+            os.environ.pop(k, None)
+            if saved[k] is not None:
+                os.environ[k] = saved[k]
+    return out.getvalue().strip()
+
+
+check("built from GitHub: the commit",
+      version_line(RAILWAY_GIT_COMMIT_SHA="f7c3295ee283c41", RAILWAY_ENVIRONMENT="production"),
+      "[OK] Running commit f7c3295.")
+check("uploaded with railway up: a warning",
+      version_line(RAILWAY_ENVIRONMENT="production").startswith("[WARN]"), True)
+check("on a laptop: nothing", version_line(), "")
+
 print("\n" + "=" * 60)
 if failures:
     print(f"\033[31m{len(failures)} FAILURES: {failures}\033[0m")
