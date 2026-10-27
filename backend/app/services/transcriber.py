@@ -5,8 +5,16 @@ from openai import OpenAI
 from app.core.config import settings
 from app.services.text_normalize import to_taiwan_traditional
 
-# Groq supports up to 100MB via URL, but for file upload we keep 25MB limit
-MAX_FILE_SIZE_MB = 24
+# Groq and OpenAI both reject uploads over 25 MB (decimal). Files at or under
+# this go up as they are; anything larger is re-encoded in chunks. Counted in
+# bytes: the old "24 MB" was measured in MiB, which is 25.2 MB.
+MAX_UPLOAD_BYTES = 24_000_000
+
+# Whisper resamples everything to 16 kHz mono before it listens, so encoding
+# chunks that way loses nothing it would have used. 20 minutes at 64 kbps is
+# 9.6 MB, far enough under the limit that no source format can push a chunk
+# over it.
+CHUNK_SECONDS = 1200
 
 # Known Whisper hallucination patterns (appears during silence/music).
 # Each entry is either:
@@ -126,9 +134,8 @@ def transcribe_audio(file_path: str) -> list[dict]:
     Returns a list of segments with start_time, end_time, and text.
     """
     client, model = get_transcription_client()
-    file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
 
-    if file_size_mb > MAX_FILE_SIZE_MB:
+    if os.path.getsize(file_path) > MAX_UPLOAD_BYTES:
         return _transcribe_chunked(client, model, file_path)
 
     return _transcribe_single(client, model, file_path)
@@ -165,6 +172,25 @@ def _transcribe_single(client: OpenAI, model: str, file_path: str) -> list[dict]
     return segments
 
 
+def chunk_command(src: str, start: int, duration: int, dst: str) -> list[str]:
+    """ffmpeg arguments that cut one upload-sized chunk out of `src`.
+
+    `-map_metadata -1` is the part that matters. ffmpeg copies the source's
+    tags into every output by default, and some episodes are exported from
+    Adobe tools with ~15 MB of XMP edit history in their ID3 tag. Copied into
+    each 20-minute chunk, that pushed 新資料夾(256) to 29 MB per chunk, and
+    every attempt to transcribe it since 2025-10 failed with a 413.
+    `-vn` drops embedded cover art for the same reason.
+    """
+    return [
+        "ffmpeg", "-v", "error", "-i", src,
+        "-ss", str(start), "-t", str(duration),
+        "-map_metadata", "-1", "-vn",
+        "-ac", "1", "-ar", "16000", "-acodec", "libmp3lame", "-b:a", "64k",
+        "-y", dst,
+    ]
+
+
 def _transcribe_chunked(client: OpenAI, model: str, file_path: str) -> list[dict]:
     """
     Split large audio files and transcribe each chunk.
@@ -181,8 +207,7 @@ def _transcribe_chunked(client: OpenAI, model: str, file_path: str) -> list[dict
     )
     total_duration = float(result.stdout.strip())
 
-    # Split into ~20 minute chunks (within 25MB for most podcasts)
-    chunk_duration = 1200  # 20 minutes
+    chunk_duration = CHUNK_SECONDS
     num_chunks = math.ceil(total_duration / chunk_duration)
 
     all_segments = []
@@ -191,12 +216,10 @@ def _transcribe_chunked(client: OpenAI, model: str, file_path: str) -> list[dict
             start = i * chunk_duration
             chunk_path = os.path.join(tmpdir, f"chunk_{i}.mp3")
 
-            subprocess.run([
-                "ffmpeg", "-i", file_path,
-                "-ss", str(start), "-t", str(chunk_duration),
-                "-acodec", "libmp3lame", "-q:a", "5",
-                "-y", chunk_path
-            ], capture_output=True)
+            # check=True: a chunk ffmpeg failed to write should fail here,
+            # not as a confusing upload error one step later.
+            subprocess.run(chunk_command(file_path, start, chunk_duration, chunk_path),
+                           capture_output=True, check=True)
 
             chunk_segments = _transcribe_single(client, model, chunk_path)
 
