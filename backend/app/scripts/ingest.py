@@ -85,6 +85,27 @@ async def setup_database(engine):
     print("[OK] Database tables created.")
 
 
+def report_code_version() -> None:
+    """Say which commit this run is executing, or that nobody can tell.
+
+    The Ingest Worker was once deployed by `railway up` and then never again:
+    from April to October it transcribed with code that predated the Taiwan
+    variant fix, so episodes 828-853 came out full of 爲/羣/裏 while the repo,
+    the Backend and every test said the fix was live. Nothing in the logs
+    showed the worker was months behind.
+
+    Railway sets RAILWAY_GIT_COMMIT_SHA only on deploys built from GitHub, so
+    its absence is the signal that a service is running an upload that will
+    not follow the repo.
+    """
+    sha = os.environ.get("RAILWAY_GIT_COMMIT_SHA")
+    if sha:
+        print(f"[OK] Running commit {sha[:7]}.")
+    elif os.environ.get("RAILWAY_ENVIRONMENT"):
+        print("[WARN] This deploy was not built from GitHub (railway up?), so it "
+              "will not pick up merged fixes. Connect the service to the repo.")
+
+
 async def ingest_episodes(session: AsyncSession, limit: int | None = None):
     """Fetch RSS feed and insert new episodes into DB."""
     print("[...] Fetching RSS feed...")
@@ -227,6 +248,7 @@ async def main():
     parser.add_argument("--limit", type=int, help="Max episodes to transcribe in this run")
     parser.add_argument("--show", type=str, help="Only process episodes from this show")
     args = parser.parse_args()
+    report_code_version()
 
     engine = create_async_engine(settings.database_url, echo=False)
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
